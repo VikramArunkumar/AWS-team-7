@@ -13,7 +13,15 @@
 //   INCIDENT#<id>         TASK#<taskId>              task
 //   INCIDENT#<id>         REC#<recId>                AI recommendation (proposed/approved/rejected)
 //   INCIDENT#<id>         AUDIT#<isoTs>#<uuid>       append-only audit event
-//   USER#<userId>         PROFILE                    user profile and role
+//   USER#<userId>         PROFILE                    application user: displayName, role,
+//                                                    and the bound cognitoSub
+//   IDENTITY#<cognitoSub> MAPPING                    server-controlled mapping from a verified
+//                                                    Cognito identity to an application user id
+//
+// Application user ids (n1, n2, c1, ...) are what updates, tasks, and audit
+// events reference. Cognito subs never replace them; the IDENTITY mapping is
+// provisioned by an administrator (scripts/provision-identity.js) and is never
+// accepted from a browser request.
 //
 // GSI1 provides actor-scoped lookups, e.g. a nurse's assigned tasks (FR-38):
 //   GSI1PK = INCIDENT#<id>#NURSE#<nurseId>, GSI1SK = TASK#<taskId>
@@ -26,6 +34,7 @@ export const ENTITY = {
   REC: 'REC',
   AUDIT: 'AUDIT',
   USER: 'USER',
+  IDENTITY: 'IDENTITY',
 };
 
 export const incidentPk = (incidentId) => `INCIDENT#${incidentId}`;
@@ -64,6 +73,11 @@ export const auditKey = (incidentId, isoTs, uuid) => ({
 export const userKey = (userId) => ({
   PK: `USER#${userId}`,
   SK: 'PROFILE',
+});
+
+export const identityKey = (cognitoSub) => ({
+  PK: `IDENTITY#${cognitoSub}`,
+  SK: 'MAPPING',
 });
 
 // GSI1 attributes for a task, enabling "tasks assigned to nurse" queries.

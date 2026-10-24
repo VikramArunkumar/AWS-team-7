@@ -6,9 +6,17 @@ CareBridge assumes electricity and basic internet connectivity remain available.
 
 ## Project status
 
-This repository contains a **local charge nurse visual prototype**, built with React and Vite, alongside the [CareBridge requirements](docs/CareBridge_Requirements.md). The prototype uses synthetic fixtures and a calm, light interface with teal accents. It is not the operational MVP: backend services, authentication, shared persistence, AWS infrastructure, and live AI integrations are not implemented. The broader features and AWS architecture below remain planned unless explicitly listed here.
+This repository contains a React/Vite frontend, a SAM backend in [`backend/`](backend/README.md), and the [CareBridge requirements](docs/CareBridge_Requirements.md). It is not the operational MVP. Nothing has been deployed or validated against live AWS yet.
 
-The sample includes:
+Implemented:
+
+- **Sign-in, sign-out, and role-based access (FR-1–FR-4, NFR-8).** Amazon Cognito hosted login with the authorization code flow and PKCE, administrator-created accounts, and `nurse` / `charge_nurse` groups. The frontend calls `GET /me` to confirm backend authentication and picks screens from the role the API reports. The API's Cognito authorizer protects every route, and Lambda enforces roles and ownership from verified claims only. Details are in the [backend README](backend/README.md#how-authentication-works).
+- **Backend scaffold.** Single-table DynamoDB persistence, persist-first nurse updates, backend-enforced recommendation approval (NFR-24), task ownership rules, and an audit log. Bedrock is a labeled stub.
+- **Charge nurse visual prototype**, shown only to charge nurses. It still renders synthetic fixtures from `src/data.js`, not API data.
+
+Main remaining auth gaps: no live AWS validation yet, no nurse-scoped data reads, no in-app administrator role, and a window of up to 30 minutes in which an access token issued before sign-out still works. The full list is in the [backend README](backend/README.md#remaining-gaps). The broader features and AWS architecture below remain planned unless listed here.
+
+The charge nurse prototype includes:
 
 - An overview with an active incident timer, priority counts, patient table, urgent nurse updates, supply concern, and staffing summary.
 - Patient search by name, identifier, room, concern, or nurse; priority and verification filters; nurse filtering; and priority, name, or room sorting.
@@ -16,9 +24,9 @@ The sample includes:
 - Care team, illustrative AI review, policy-unavailable, and crisis handoff preview screens.
 - Responsive navigation and layouts, keyboard-accessible controls, and native modal dialogs.
 
-Task assignment, recommendation decisions, and policy questions are intentionally disabled previews. No clinical action, assignment, escalation, message, or incident closure occurs. The displayed charge nurse is a fictional demo persona, not an authenticated session. There is no data-entry or persistence path; do not connect real patient data to this prototype.
+Task assignment, recommendation decisions, and policy questions are still disabled previews in the UI. No clinical action, assignment, escalation, message, or incident closure occurs from the frontend. The signed-in name comes from the API; the dashboard records do not. Nurses see a minimal signed-in view; nurse update entry and assigned-task screens are not connected. Do not connect real patient data.
 
-These screens explore FR-7, FR-11, FR-22–FR-24, FR-29–FR-33, FR-37, FR-39, and FR-43 visually; they do not satisfy the complete backend, authorization, audit, or AWS requirements.
+These screens explore FR-7, FR-11, FR-22–FR-24, FR-29–FR-33, FR-37, FR-39, and FR-43 visually; they do not satisfy the complete backend, audit, or AWS requirements.
 
 The project targets an 18-hour hackathon build using **synthetic patient data only**. It is a demonstration, with no claim of production readiness or regulatory certification.
 
@@ -74,14 +82,14 @@ Requirement identifiers below refer to the source requirements document.
 
 ## Proposed AWS architecture
 
-The following is an implementation starting point. Only Amazon Bedrock, a Bedrock Knowledge Base, and Bedrock Guardrails are specified AI components in the requirements; the remaining service choices are proposals to validate during implementation.
+Cognito, the API Gateway REST API with its Cognito authorizer, Lambda, and DynamoDB are defined in [`backend/template.yaml`](backend/template.yaml) but have not been deployed. Only Amazon Bedrock, a Bedrock Knowledge Base, and Bedrock Guardrails are specified AI components in the requirements; Bedrock, the Knowledge Base, and S3 policy storage are not built yet.
 
 ```mermaid
 flowchart TD
     Users[Nurses and charge nurses] --> Web[Responsive web application]
-    Web --> Auth[Amazon Cognito: proposed authentication]
-    Web --> API[API Gateway and Lambda: proposed backend]
-    API --> Store[(DynamoDB: proposed operational and audit storage)]
+    Web --> Auth[Amazon Cognito: hosted login, nurse and charge_nurse groups]
+    Web --> API[API Gateway with Cognito authorizer, and Lambda]
+    API --> Store[(DynamoDB: operational, identity mapping, and audit storage)]
     API --> AI[Amazon Bedrock with Guardrails]
     AI --> KB[Bedrock Knowledge Base]
     KB --> Policies[S3: proposed facility policy source]
@@ -119,36 +127,91 @@ Use plain language and clear urgency labels; do not rely on color alone to conve
 
 ## Local development
 
-Use Node.js 22.12 or later in the Node 22 line, or a newer supported LTS release, and npm. From the repository root:
+Use Node.js 22.12 or later in the Node 22 line, or a newer supported LTS release, and npm. Sign-in needs a deployed backend stack; see the [backend README](backend/README.md#deploy) to deploy it, create accounts, and provision identity mappings. Then, from the repository root:
 
 ```sh
 npm install
+cp .env.example .env.local   # then fill in from the stack outputs (below)
 npm run dev
 ```
 
-Open the Local URL printed by Vite (normally `http://127.0.0.1:5173`). The development server binds to loopback. Stop it with Ctrl+C.
+Open **`http://localhost:5173`**, the URL Vite prints. Use `localhost`, not `127.0.0.1`: Cognito's callback and sign-out URLs and the API's CORS origin are registered for `http://localhost:5173`, and the app refuses to start sign-in from a different origin. The dev server binds to loopback only and fails rather than moving to another port. Stop it with Ctrl+C. Without `.env.local`, the app shows a "Sign-in isn't configured" screen listing the missing settings.
 
 ```sh
+npm test         # Frontend unit tests (config, API client, sign-out)
 npm run build    # Create the production frontend in dist/
-npm run preview  # Serve that build locally (normally port 4173)
+npm run preview  # Serve that build at http://localhost:5173 (same sign-in URLs)
 ```
 
-`npm install`, `npm run dev`, and `npm run build` were verified with Node 22.16.0 and npm 10.9.2. The production build passed; the dev server returned HTTP 200. `npm run preview` is configured but was not separately exercised. The dependency lockfile is included with the source so subsequent installs can use `npm ci`.
+The lockfile is included, so installs can use `npm ci`.
+
+### Populate frontend config from stack outputs
+
+All `VITE_` values are public configuration that ships in the browser bundle. User pool IDs, app client IDs, and domain URLs are safe to expose. Never put passwords, client secrets, AWS access keys, or session tokens in a `VITE_` variable; the app refuses to start if a variable name looks like one. `.env.local` is gitignored.
+
+```sh
+STACK=carebridge-dev
+out() { aws cloudformation describe-stacks --stack-name "$STACK" \
+  --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue" --output text; }
+cat > .env.local <<EOF
+VITE_API_BASE_URL=$(out ApiBaseUrl)
+VITE_COGNITO_REGION=$(out Region)
+VITE_COGNITO_USER_POOL_ID=$(out UserPoolId)
+VITE_COGNITO_APP_CLIENT_ID=$(out UserPoolClientId)
+VITE_COGNITO_DOMAIN=$(out CognitoLoginDomain)
+VITE_AUTH_REDIRECT_URI=$(out CallbackUrl)
+VITE_AUTH_LOGOUT_URI=$(out SignOutUrl)
+EOF
+```
+
+Restart `npm run dev` after changing `.env.local`.
+
+### Sign-in and session behavior
+
+- **Library.** [`react-oidc-context`](https://github.com/authts/react-oidc-context) 3.3.1 over `oidc-client-ts` 3.5.0 (pinned). The library handles the redirect, PKCE (S256), and `state` validation. The app also sends a random `nonce`, which the library checks against the ID token. The client has no secret.
+- **Callback.** Cognito returns to `/auth/callback`. After the code exchange, the app replaces the address with `/`, so the authorization code and state don't stay in the URL or history. Failed or replayed callbacks show "Sign-in didn't complete" without echoing error details.
+- **Verification.** After sign-in the app calls `GET /me`. It shows the charge nurse dashboard only when the API reports `charge_nurse`, and a nurse view for `nurse`. An unmapped account sees "Your account isn't set up yet." The UI choice is convenience; the API enforces every permission.
+- **API calls.** `src/api/client.js` sends `Authorization: Bearer <access token>`, never `X-User-Id` / `X-User-Role`, never cookies, and keeps tokens out of URLs, errors, and logs.
+- **Token storage.** Access, ID, and refresh tokens, plus in-flight sign-in state (state, nonce, PKCE verifier), are stored in this tab's **sessionStorage** under `oidc.` keys. They survive a page reload, are not shared with other tabs, and are cleared when the tab closes. Any script running on the page could read them, so avoid third-party scripts and add a Content Security Policy when hosting.
+- **Expiry.** Access tokens last 30 minutes. About a minute before expiry the library renews silently with the refresh token (12-hour lifetime). If renewal fails, or the API returns 401, the app clears the session and shows "Your session ended."
+- **Sign-out.** The app clears protected data held in memory, revokes the refresh token at Cognito (best effort), removes the stored user and all `oidc.` entries, then redirects to Cognito `/logout`, which ends the hosted-login session and returns to `VITE_AUTH_LOGOUT_URI`. An access token issued before sign-out stays valid at the API until it expires; the [backend README](backend/README.md#tokens-and-sign-out) explains how to cut off access immediately.
+
+### Hosting the frontend
+
+Deploy a stack whose `FrontendOrigin`, `CallbackUrl`, and `SignOutUrl` use the hosted HTTPS address ([backend README](backend/README.md#change-callback-and-sign-out-urls-for-hosting)), rebuild with matching `VITE_` values, and serve `dist/`. Configure the host to return `index.html` for `/auth/callback` (an SPA rewrite on Amplify Hosting, or a CloudFront error response for S3).
 
 ### Frontend structure and demo behavior
 
-- `src/main.jsx`: React screens, search/filter state, and read-only detail dialogs.
+- `src/main.jsx`: auth provider setup, role routing, and the charge nurse dashboard screens, search/filter state, and read-only detail dialogs.
+- `src/auth/`: sign-in configuration and validation (`config.js`), the sign-in, access-check, and error screens (`AuthGate.jsx`), and sign-out helpers (`session.js`).
+- `src/api/client.js`: the small API client that attaches the access token.
+- `src/NurseHome.jsx`: the minimal signed-in nurse view.
 - `src/data.js`: synthetic patients, nurses, updates, tasks, incident, and authored AI examples. Source updates and recommendations are separate records linked by identifiers.
 - `src/styles.css`: light/teal styling and responsive layouts. DM Sans and Manrope load from Google Fonts when reachable, with local sans-serif fallbacks.
-- `index.html`: Vite entry point. No credentials or AWS settings are needed.
+- `index.html`: Vite entry point.
+- `.env.example`: placeholder sign-in and API settings.
 
-All records are read-only, in-memory fixtures. The sample clock anchors on each page load. Incident duration and overdue/freshness calculations use timestamps, refresh every 30 seconds, and do not depend on the viewer's locale. Displayed times use `America/Los_Angeles` (Pacific time). Information is flagged as unverified if it has no verification timestamp or was last verified more than **60 minutes** ago; this is a prototype choice, not a requirement or facility policy.
+All dashboard records are read-only, in-memory fixtures. The sample clock anchors on each page load. Incident duration and overdue/freshness calculations use timestamps, refresh every 30 seconds, and do not depend on the viewer's locale. Displayed times use `America/Los_Angeles` (Pacific time). Information is flagged as unverified if it has no verification timestamp or was last verified more than **60 minutes** ago; this is a prototype choice, not a requirement or facility policy.
 
 The eight displayed patients are a subset of a fictional staffing plan. AI text is authored sample content, not generated by Bedrock. One update demonstrates an AI-failure presentation while retaining its original source text; no actual save or AI request occurs. The policy screen explicitly reports that no policy source is connected and produces no answer or citation. Handoff is a read-only view, not an export or incident closure.
 
 ### Verification
 
-See [frontend verification notes](docs/Frontend_Verification.md) for browser checks and remaining limits. This visual-only change does not add an application test suite. Backend authorization, persistence, approval enforcement, retries, AWS integrations, and operational performance targets remain unverified and unimplemented.
+Verified locally on October 23, 2026 (Node 22.16.0, npm 10.9.2), without deploying anything:
+
+| Check | Result |
+| --- | --- |
+| `npm test` (frontend) | 17 tests pass: config validation, secret-variable guard, origin check, logout URL, Bearer header without identity headers, token-free errors, sign-out order and storage cleanup. |
+| `npm run build` | Passes. The bundle contains no `X-User` headers. |
+| `npm run dev` | Serves `http://localhost:5173` on loopback; `/auth/callback` returns the app. |
+| `cd backend && npm test` | 94 tests pass with mocked authorizer claims. Removing the client-id check or the dashboard role check made the suite fail, confirming the tests detect those regressions. |
+| `cfn-lint`, `sam validate --lint` | Pass (run through `uvx`; the SAM CLI is not installed globally). |
+| `scripts/check-template-auth.py` | Every non-OPTIONS method requires `CognitoAuthorizer` with `carebridge/access`; OPTIONS is open; gateway errors carry CORS headers; one stage named after `Stage`. |
+| Headless Chrome against the dev server | With Cognito endpoints stubbed in the browser and a local `/me` stub: the authorize request uses `code`, S256 PKCE, state, and nonce; the code exchange sends the verifier and no secret; a valid callback loads the dashboard and clears the URL; replayed callbacks and a wrong nonce are rejected; nurse and charge views follow `/me`; 401 and token expiry end the session; sign-out clears storage and redirects to `/logout`; sign-in and nurse screens fit a 390-pixel viewport. |
+
+Not verified: anything against live Cognito or API Gateway (hosted login pages, the real authorizer, CORS on deployed gateway errors, refresh-token renewal and revocation at Cognito). Run the [deployed smoke test](backend/README.md#deployed-smoke-test) after the first deploy. Mocked-claim tests show how Lambda treats verified claims; they are not evidence that the deployed authorizer works, and `sam local` does not run Cognito authorizers either.
+
+See [frontend verification notes](docs/Frontend_Verification.md) for the earlier visual prototype checks. Persistence through the UI, retries, AWS integrations, and operational performance targets remain unverified.
 
 Before integrating AWS, select a region and a supported Bedrock model, establish least-privilege service permissions, configure Guardrails, and prepare a Knowledge Base with synthetic or demonstration facility policies. Document actual configuration variable names and setup steps alongside the implementation; do not commit secrets.
 

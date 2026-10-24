@@ -4,6 +4,10 @@
 // reconstruct the action. Audit items share the incident partition and sort by
 // timestamp. They are written, never updated, so history cannot be rewritten.
 //
+// The actor comes from lib/auth.js authenticate(): actorId is the application
+// user id (e.g. n1) used for ownership, and actorCognitoSub retains the
+// verified Cognito identity that made the request.
+//
 // Keep patient free-text and raw request bodies OUT of audit detail (NFR-11).
 // Store identifiers and small status/field summaries instead.
 
@@ -31,14 +35,19 @@ export const AUDIT_ACTIONS = {
  * Build an audit item. Returned as a PutCommand-shaped Item so it can either be
  * written directly or folded into a TransactWriteItems batch.
  */
-export function buildAuditItem(incidentId, { actorId, actorRole, action, targetId, summary }) {
+export function buildAuditItem(incidentId, { actor, action, targetId, summary }) {
+  if (!actor?.userId || !actor?.role || !actor?.cognitoSub) {
+    // Every audited action must be attributable to an authenticated actor.
+    throw new Error('audit_actor_required');
+  }
   const ts = nowIso();
   return {
     ...auditKey(incidentId, ts, uuid()),
     entity: ENTITY.AUDIT,
     incidentId,
-    actorId,
-    actorRole,
+    actorId: actor.userId,
+    actorRole: actor.role,
+    actorCognitoSub: actor.cognitoSub,
     action,
     targetId: targetId ?? null,
     // summary is a small, non-sensitive object (ids, status transitions, counts).

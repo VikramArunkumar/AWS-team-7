@@ -5,11 +5,17 @@
 // (overdue, unconfirmed, unverified). One round trip supports the 3-second
 // load target (NFR-4). Filtering/sorting (FR-31) is applied server-side when
 // query-string params are present; the frontend can also refine client-side.
+//
+// Charge nurse only (NFR-8). The snapshot contains every patient, all tasks,
+// staffing-related data, and AI recommendations for the incident. Signing in
+// as a nurse does not grant this view; a nurse-scoped read endpoint is a
+// documented remaining gap.
 
 import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { ddb, TABLE_NAME } from '../lib/ddb.js';
 import { incidentPk, ENTITY } from '../lib/keys.js';
-import { ok, withErrorHandling, getActor, HttpError } from '../lib/http.js';
+import { authenticate, requireRole, ROLES } from '../lib/auth.js';
+import { ok, withErrorHandling, HttpError } from '../lib/http.js';
 
 // Prototype freshness window for patient verification (FR-11). This threshold
 // is a documented product decision, not something the requirements specify.
@@ -18,7 +24,8 @@ const VERIFICATION_FRESHNESS_MINUTES = 60;
 const OPEN_TASK_STATUSES = new Set(['Unconfirmed', 'In progress', 'Delayed', 'Unable to complete']);
 
 async function getDashboard(event) {
-  getActor(event); // authenticated users only (NFR-8)
+  const actor = await authenticate(event);
+  requireRole(actor, ROLES.CHARGE_NURSE);
   const { incidentId } = event.pathParameters || {};
   const q = event.queryStringParameters || {};
   const now = Date.now();

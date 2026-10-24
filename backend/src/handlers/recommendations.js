@@ -12,12 +12,13 @@
 import { GetCommand, TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { ddb, TABLE_NAME } from '../lib/ddb.js';
 import {
-  recommendationKey, taskKey, auditKey, ENTITY, taskGsi1,
+  recommendationKey, taskKey, ENTITY, taskGsi1,
 } from '../lib/keys.js';
-import { newTaskId, nowIso, uuid } from '../lib/ids.js';
+import { newTaskId, nowIso } from '../lib/ids.js';
 import { buildAuditItem, AUDIT_ACTIONS } from '../lib/audit.js';
+import { authenticate, requireRole, ROLES } from '../lib/auth.js';
 import {
-  ok, created, withErrorHandling, parseBody, getActor, requireRole, ROLES, HttpError,
+  ok, created, withErrorHandling, parseBody, HttpError,
 } from '../lib/http.js';
 
 async function loadProposed(incidentId, recId) {
@@ -34,7 +35,7 @@ async function loadProposed(incidentId, recId) {
 // FR-33 / NFR-24: approving creates the assignment. Charge-nurse only.
 // The body may modify the proposal before it becomes a task (NFR-25).
 async function approve(event) {
-  const actor = getActor(event);
+  const actor = await authenticate(event);
   requireRole(actor, ROLES.CHARGE_NURSE);
   const { incidentId, recommendationId } = event.pathParameters || {};
   const body = parseBody(event);
@@ -86,7 +87,7 @@ async function approve(event) {
           Put: {
             TableName: TABLE_NAME,
             Item: buildAuditItem(incidentId, {
-              actorId: actor.userId, actorRole: actor.role,
+              actor,
               action: AUDIT_ACTIONS.REC_APPROVED, targetId: recommendationId,
               summary: { taskId, assignedNurse: nurse },
             }),
@@ -106,7 +107,7 @@ async function approve(event) {
 
 // NFR-25: rejection records the decision and applies nothing.
 async function reject(event) {
-  const actor = getActor(event);
+  const actor = await authenticate(event);
   requireRole(actor, ROLES.CHARGE_NURSE);
   const { incidentId, recommendationId } = event.pathParameters || {};
   const body = parseBody(event);
@@ -134,7 +135,7 @@ async function reject(event) {
           Put: {
             TableName: TABLE_NAME,
             Item: buildAuditItem(incidentId, {
-              actorId: actor.userId, actorRole: actor.role,
+              actor,
               action: AUDIT_ACTIONS.REC_REJECTED, targetId: recommendationId,
             }),
           },
@@ -153,7 +154,7 @@ async function reject(event) {
 
 export const handler = withErrorHandling(async (event) => {
   const path = event.resource || '';
-  if (path.endsWith('/approve')) return approve(event);
-  if (path.endsWith('/reject')) return reject(event);
+  if (event.httpMethod === 'POST' && path.endsWith('/approve')) return approve(event);
+  if (event.httpMethod === 'POST' && path.endsWith('/reject')) return reject(event);
   throw new HttpError(405, 'method_not_allowed', 'Unsupported method.');
 });

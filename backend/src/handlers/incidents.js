@@ -1,13 +1,15 @@
 // Incident lifecycle (FR-5 to FR-8).
 // Activation and deactivation are charge-nurse actions and are audited.
+// Any provisioned user may read incident status and duration (FR-7).
 
 import { PutCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { ddb, TABLE_NAME } from '../lib/ddb.js';
 import { incidentMetaKey, ENTITY } from '../lib/keys.js';
 import { newIncidentId, nowIso } from '../lib/ids.js';
 import { writeAudit, AUDIT_ACTIONS } from '../lib/audit.js';
+import { authenticate, requireRole, ROLES } from '../lib/auth.js';
 import {
-  ok, created, withErrorHandling, parseBody, getActor, requireRole, ROLES, HttpError,
+  ok, created, withErrorHandling, parseBody, HttpError,
 } from '../lib/http.js';
 
 const VALID_TYPES = [
@@ -18,7 +20,7 @@ const VALID_TYPES = [
 ];
 
 async function createIncident(event) {
-  const actor = getActor(event);
+  const actor = await authenticate(event);
   requireRole(actor, ROLES.CHARGE_NURSE); // FR-5
 
   const body = parseBody(event);
@@ -48,8 +50,7 @@ async function createIncident(event) {
   }));
 
   await writeAudit(incidentId, {
-    actorId: actor.userId,
-    actorRole: actor.role,
+    actor,
     action: AUDIT_ACTIONS.INCIDENT_ACTIVATED,
     targetId: incidentId,
     summary: { type: body.type },
@@ -59,7 +60,7 @@ async function createIncident(event) {
 }
 
 async function getIncident(event) {
-  getActor(event); // any authenticated role may view incident status (FR-10)
+  await authenticate(event); // nurses and charge nurses may view status (FR-7)
   const { incidentId } = event.pathParameters || {};
   const res = await ddb.send(new GetCommand({
     TableName: TABLE_NAME,
@@ -70,7 +71,7 @@ async function getIncident(event) {
 }
 
 async function deactivateIncident(event) {
-  const actor = getActor(event);
+  const actor = await authenticate(event);
   requireRole(actor, ROLES.CHARGE_NURSE); // FR-8
   const { incidentId } = event.pathParameters || {};
   const endedAt = nowIso();
@@ -81,9 +82,11 @@ async function deactivateIncident(event) {
       TableName: TABLE_NAME,
       Key: incidentMetaKey(incidentId),
       ConditionExpression: 'attribute_exists(PK) AND #s = :active',
-      UpdateExpression: 'SET #s = :closed, endedAt = :endedAt',
+      UpdateExpression: 'SET #s = :closed, endedAt = :endedAt, closedBy = :by',
       ExpressionAttributeNames: { '#s': 'status' },
-      ExpressionAttributeValues: { ':active': 'active', ':closed': 'closed', ':endedAt': endedAt },
+      ExpressionAttributeValues: {
+        ':active': 'active', ':closed': 'closed', ':endedAt': endedAt, ':by': actor.userId,
+      },
       ReturnValues: 'ALL_NEW',
     }));
   } catch (err) {
@@ -94,8 +97,7 @@ async function deactivateIncident(event) {
   }
 
   await writeAudit(incidentId, {
-    actorId: actor.userId,
-    actorRole: actor.role,
+    actor,
     action: AUDIT_ACTIONS.INCIDENT_DEACTIVATED,
     targetId: incidentId,
   });

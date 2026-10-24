@@ -10,8 +10,9 @@ import { ddb, TABLE_NAME } from '../lib/ddb.js';
 import { taskKey, taskGsi1, ENTITY } from '../lib/keys.js';
 import { newTaskId, nowIso } from '../lib/ids.js';
 import { writeAudit, AUDIT_ACTIONS } from '../lib/audit.js';
+import { authenticate, requireRole, ROLES } from '../lib/auth.js';
 import {
-  ok, created, withErrorHandling, parseBody, getActor, requireRole, ROLES, HttpError,
+  ok, created, withErrorHandling, parseBody, HttpError,
 } from '../lib/http.js';
 
 const PRIORITIES = ['High', 'Moderate', 'Low'];
@@ -20,7 +21,7 @@ const NURSE_STATUSES = ['In progress', 'Completed', 'Delayed', 'Unable to comple
 
 // FR-36 / FR-37: charge nurse creates a task with the required fields.
 async function createTask(event) {
-  const actor = getActor(event);
+  const actor = await authenticate(event);
   requireRole(actor, ROLES.CHARGE_NURSE);
   const { incidentId } = event.pathParameters || {};
   const body = parseBody(event);
@@ -54,7 +55,7 @@ async function createTask(event) {
   }));
 
   await writeAudit(incidentId, {
-    actorId: actor.userId, actorRole: actor.role,
+    actor,
     action: AUDIT_ACTIONS.TASK_CREATED, targetId: taskId,
     summary: { patient: body.patient, assignedNurse: nurse, priority },
   });
@@ -66,7 +67,7 @@ async function createTask(event) {
 // change status and reassign any task. A PATCH can carry status, assignedNurse,
 // priority, or dueAt.
 async function patchTask(event) {
-  const actor = getActor(event);
+  const actor = await authenticate(event);
   const { incidentId, taskId } = event.pathParameters || {};
   const body = parseBody(event);
 
@@ -79,6 +80,14 @@ async function patchTask(event) {
   const isCharge = actor.role === ROLES.CHARGE_NURSE;
   const isOwner = task.nurse === actor.userId;
 
+  // Nurses may only touch tasks assigned to them, whatever fields they send.
+  if (!isCharge && !isOwner) {
+    throw new HttpError(403, 'forbidden', 'You can only update tasks assigned to you.');
+  }
+  if (body.assignedNurse !== undefined && (typeof body.assignedNurse !== 'string' || !body.assignedNurse)) {
+    throw new HttpError(400, 'invalid_assignee', 'Choose a nurse to assign.');
+  }
+
   // Reassignment / priority / due changes are charge-nurse only.
   const wantsReassign = body.assignedNurse !== undefined && body.assignedNurse !== task.nurse;
   const wantsPriority = body.priority !== undefined;
@@ -88,13 +97,8 @@ async function patchTask(event) {
   }
 
   // Status change: charge nurse anytime, or the assigned nurse on their own task.
-  if (body.status !== undefined) {
-    if (!NURSE_STATUSES.includes(body.status)) {
-      throw new HttpError(400, 'invalid_status', 'Unknown task status.');
-    }
-    if (!isCharge && !isOwner) {
-      throw new HttpError(403, 'forbidden', 'You can only update tasks assigned to you.');
-    }
+  if (body.status !== undefined && !NURSE_STATUSES.includes(body.status)) {
+    throw new HttpError(400, 'invalid_status', 'Unknown task status.');
   }
 
   const sets = [];
@@ -133,18 +137,30 @@ async function patchTask(event) {
     throw new HttpError(400, 'nothing_to_update', 'No supported fields provided.');
   }
 
-  const res = await ddb.send(new UpdateCommand({
-    TableName: TABLE_NAME,
-    Key: taskKey(incidentId, taskId),
-    ConditionExpression: 'attribute_exists(PK)',
-    UpdateExpression: `SET ${sets.join(', ')}`,
-    ...(Object.keys(names).length ? { ExpressionAttributeNames: names } : {}),
-    ExpressionAttributeValues: values,
-    ReturnValues: 'ALL_NEW',
-  }));
+  // For nurses, re-check assignment atomically so a concurrent reassignment
+  // cannot let them change a task that is no longer theirs.
+  if (!isCharge) values[':actor'] = actor.userId;
+
+  let res;
+  try {
+    res = await ddb.send(new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: taskKey(incidentId, taskId),
+      ConditionExpression: isCharge ? 'attribute_exists(PK)' : 'attribute_exists(PK) AND nurse = :actor',
+      UpdateExpression: `SET ${sets.join(', ')}`,
+      ...(Object.keys(names).length ? { ExpressionAttributeNames: names } : {}),
+      ExpressionAttributeValues: values,
+      ReturnValues: 'ALL_NEW',
+    }));
+  } catch (err) {
+    if (err.name === 'ConditionalCheckFailedException') {
+      throw new HttpError(403, 'forbidden', 'You can only update tasks assigned to you.');
+    }
+    throw err;
+  }
 
   await writeAudit(incidentId, {
-    actorId: actor.userId, actorRole: actor.role,
+    actor,
     action: wantsReassign ? AUDIT_ACTIONS.TASK_ASSIGNED : AUDIT_ACTIONS.TASK_STATUS_CHANGED,
     targetId: taskId, summary: audit,
   });

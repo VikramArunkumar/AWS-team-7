@@ -1,9 +1,51 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: >
-  CareBridge backend. Single-table DynamoDB persistence with an API Gateway + Lambda
-  surface for incidents, patient continuity profiles, nurse updates, tasks,
-  AI recommendations, and an append-only audit log. Synthetic data only.
+  CareBridge backend. Cognito sign-in (administrator-created accounts, hosted
+  login, authorization code + PKCE) in front of an API Gateway REST API whose
+  default Cognito authorizer requires the carebridge/access access-token scope.
+  Single-table DynamoDB persistence for incidents, patient continuity profiles,
+  nurse updates, tasks, AI recommendations, identity mappings, and an
+  append-only audit log. Synthetic data only.
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, demo]
+    Description: Deployment stage label. Also used as the API Gateway stage name.
+
+  CognitoDomainPrefix:
+    Type: String
+    Description: >
+      Prefix for the Cognito hosted login domain
+      (https://<prefix>.auth.<region>.amazoncognito.com). Must be unique in the
+      region and must not contain "aws", "amazon", or "cognito".
+    AllowedPattern: '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$'
+    ConstraintDescription: Lowercase letters, numbers, and hyphens; 1-63 characters.
+
+  FrontendOrigin:
+    Type: String
+    Default: http://localhost:5173
+    Description: >
+      Exact browser origin of the frontend, used for CORS. http is accepted only
+      for localhost; deployed frontends must use https.
+    AllowedPattern: '^(https://[a-z0-9.-]+(:[0-9]{1,5})?|http://localhost(:[0-9]{1,5})?)$'
+    ConstraintDescription: An https origin (or http://localhost[:port]) with no path or trailing slash.
+
+  CallbackUrl:
+    Type: String
+    Default: http://localhost:5173/auth/callback
+    Description: OAuth redirect (callback) URL registered on the SPA app client.
+    AllowedPattern: '^(https://[a-z0-9.-]+(:[0-9]{1,5})?|http://localhost(:[0-9]{1,5})?)/\S*$'
+    ConstraintDescription: An https URL (or http://localhost[:port]/...) including a path.
+
+  SignOutUrl:
+    Type: String
+    Default: http://localhost:5173/
+    Description: Allowed sign-out redirect URL registered on the SPA app client.
+    AllowedPattern: '^(https://[a-z0-9.-]+(:[0-9]{1,5})?|http://localhost(:[0-9]{1,5})?)/\S*$'
+    ConstraintDescription: An https URL (or http://localhost[:port]/...) including a path.
 
 Globals:
   Function:
@@ -11,28 +53,168 @@ Globals:
     Architectures: [arm64]
     MemorySize: 256
     Timeout: 10
+    Tracing: Active
     Environment:
       Variables:
         TABLE_NAME: !Ref CareBridgeTable
         # Bedrock settings are placeholders until the AI integration is wired up.
         BEDROCK_REGION: us-east-1
         BEDROCK_MODEL_ID: anthropic.claude-3-5-sonnet-20240620-v1:0
-    Tracing: Active
-  Api:
-    TracingEnabled: true
-    Cors:
-      AllowMethods: "'GET,POST,PATCH,OPTIONS'"
-      AllowHeaders: "'Content-Type,Authorization,X-User-Id,X-User-Role'"
-      AllowOrigin: "'*'"
-
-Parameters:
-  Stage:
-    Type: String
-    Default: dev
-    AllowedValues: [dev, demo]
-    Description: Deployment stage label used for the API stage name.
+        # Lambda re-validates the verified claims against these values
+        # (src/lib/auth.js). They are identifiers, not secrets.
+        COGNITO_APP_CLIENT_ID: !Ref UserPoolClient
+        COGNITO_ISSUER: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'
+        AUTH_REQUIRED_SCOPE: carebridge/access
+        ALLOWED_ORIGIN: !Ref FrontendOrigin
 
 Resources:
+  # ---------------------------------------------------------------------------
+  # Authentication (FR-1 to FR-4)
+  # ---------------------------------------------------------------------------
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub 'carebridge-${Stage}'
+      # Administrator-created accounts only; there is no self sign-up.
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      UsernameAttributes: [email]
+      UsernameConfiguration:
+        CaseSensitive: false
+      AutoVerifiedAttributes: [email]
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          TemporaryPasswordValidityDays: 3
+      # MFA and other advanced authentication are stretch work.
+      MfaConfiguration: 'OFF'
+
+  # Custom scope that API Gateway requires on every protected method. Only
+  # access tokens carry custom scopes, so ID tokens are rejected by the API.
+  CareBridgeResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      Identifier: carebridge
+      Name: CareBridge API
+      Scopes:
+        - ScopeName: access
+          ScopeDescription: Call the CareBridge API as the signed-in user.
+
+  # Public single-page-app client: no secret, authorization code grant only.
+  # The SPA always sends a PKCE S256 code challenge (oidc-client-ts default).
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: CareBridgeResourceServer
+    Properties:
+      ClientName: !Sub 'carebridge-spa-${Stage}'
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]            # implicit flow is not allowed
+      AllowedOAuthScopes:
+        - openid
+        - carebridge/access
+      CallbackURLs: [!Ref CallbackUrl]
+      LogoutURLs: [!Ref SignOutUrl]
+      SupportedIdentityProviders: [COGNITO]
+      # SRP lets the hosted login verify passwords without sending them in the
+      # clear. Tokens from direct SDK sign-in lack carebridge/access and are
+      # rejected by the API. Plain USER_PASSWORD_AUTH is not enabled.
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      PreventUserExistenceErrors: ENABLED
+      EnableTokenRevocation: true
+      AuthSessionValidity: 5
+      AccessTokenValidity: 30
+      IdTokenValidity: 30
+      RefreshTokenValidity: 12
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: hours
+
+  # Hosted login (classic hosted UI) at https://<prefix>.auth.<region>.amazoncognito.com
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref CognitoDomainPrefix
+      UserPoolId: !Ref UserPool
+      ManagedLoginVersion: 1
+
+  NurseGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: nurse
+      UserPoolId: !Ref UserPool
+      Description: CareBridge nurse. Submits updates and reports progress on assigned tasks.
+      Precedence: 20
+
+  ChargeNurseGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: charge_nurse
+      UserPoolId: !Ref UserPool
+      Description: CareBridge charge nurse. Manages incidents, tasks, and AI recommendation decisions.
+      Precedence: 10
+
+  # ---------------------------------------------------------------------------
+  # API (Cognito authorizer applied to every application route by default)
+  # ---------------------------------------------------------------------------
+  CareBridgeApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: !Ref Stage
+      # 3.x avoids SAM's implicit extra "Stage" stage.
+      OpenApiVersion: '3.0.1'
+      TracingEnabled: true
+      Cors:
+        AllowOrigin: !Sub "'${FrontendOrigin}'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowMethods: "'GET,POST,PATCH,OPTIONS'"
+        MaxAge: "'600'"
+      Auth:
+        DefaultAuthorizer: CognitoAuthorizer
+        # Browsers send preflight OPTIONS without credentials.
+        AddDefaultAuthorizerToCorsPreflight: false
+        Authorizers:
+          CognitoAuthorizer:
+            UserPoolArn: !GetAtt UserPool.Arn
+            # Requiring a scope makes API Gateway accept only access tokens.
+            AuthorizationScopes:
+              - carebridge/access
+            Identity:
+              Header: Authorization
+      # Authorizer rejections (401/403) and other gateway errors must carry the
+      # same CORS headers as Lambda responses, or the browser hides them.
+      GatewayResponses:
+        DEFAULT_4XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: !Sub "'${FrontendOrigin}'"
+              Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              Access-Control-Allow-Methods: "'GET,POST,PATCH,OPTIONS'"
+              Vary: "'Origin'"
+        DEFAULT_5XX:
+          ResponseParameters:
+            Headers:
+              Access-Control-Allow-Origin: !Sub "'${FrontendOrigin}'"
+              Access-Control-Allow-Headers: "'Content-Type,Authorization'"
+              Access-Control-Allow-Methods: "'GET,POST,PATCH,OPTIONS'"
+              Vary: "'Origin'"
+
+  # ---------------------------------------------------------------------------
+  # Data
+  # ---------------------------------------------------------------------------
   CareBridgeTable:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -70,6 +252,26 @@ Resources:
           Projection:
             ProjectionType: ALL
 
+  # ---------------------------------------------------------------------------
+  # Functions. Every event uses CareBridgeApi and therefore its default
+  # Cognito authorizer; no route opts out.
+  # ---------------------------------------------------------------------------
+  MeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/me.handler
+      CodeUri: src/
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref CareBridgeTable
+      Events:
+        GetMe:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CareBridgeApi
+            Path: /me
+            Method: get
+
   IncidentsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -82,16 +284,19 @@ Resources:
         CreateIncident:
           Type: Api
           Properties:
+            RestApiId: !Ref CareBridgeApi
             Path: /incidents
             Method: post
         GetIncident:
           Type: Api
           Properties:
+            RestApiId: !Ref CareBridgeApi
             Path: /incidents/{incidentId}
             Method: get
         DeactivateIncident:
           Type: Api
           Properties:
+            RestApiId: !Ref CareBridgeApi
             Path: /incidents/{incidentId}/deactivate
             Method: post
 
@@ -107,6 +312,7 @@ Resources:
         GetDashboard:
           Type: Api
           Properties:
+            RestApiId: !Ref CareBridgeApi
             Path: /incidents/{incidentId}/dashboard
             Method: get
 
@@ -122,16 +328,19 @@ Resources:
         CreateUpdate:
           Type: Api
           Properties:
+            RestApiId: !Ref CareBridgeApi
             Path: /incidents/{incidentId}/updates
             Method: post
         EditUpdate:
           Type: Api
           Properties:
+            RestApiId: !Ref CareBridgeApi
             Path: /incidents/{incidentId}/updates/{updateId}
             Method: patch
         ProcessUpdate:
           Type: Api
           Properties:
+            RestApiId: !Ref CareBridgeApi
             Path: /incidents/{incidentId}/updates/{updateId}/process
             Method: post
 
@@ -147,11 +356,13 @@ Resources:
         ApproveRecommendation:
           Type: Api
           Properties:
+            RestApiId: !Ref CareBridgeApi
             Path: /incidents/{incidentId}/recommendations/{recommendationId}/approve
             Method: post
         RejectRecommendation:
           Type: Api
           Properties:
+            RestApiId: !Ref CareBridgeApi
             Path: /incidents/{incidentId}/recommendations/{recommendationId}/reject
             Method: post
 
@@ -167,18 +378,41 @@ Resources:
         CreateTask:
           Type: Api
           Properties:
+            RestApiId: !Ref CareBridgeApi
             Path: /incidents/{incidentId}/tasks
             Method: post
         UpdateTaskStatus:
           Type: Api
           Properties:
+            RestApiId: !Ref CareBridgeApi
             Path: /incidents/{incidentId}/tasks/{taskId}
             Method: patch
 
 Outputs:
   ApiBaseUrl:
-    Description: Base URL for the CareBridge API.
-    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}'
+    Description: Base URL for the CareBridge API (VITE_API_BASE_URL).
+    Value: !Sub 'https://${CareBridgeApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${Stage}'
+  Region:
+    Description: AWS region of the stack (VITE_COGNITO_REGION).
+    Value: !Ref AWS::Region
+  UserPoolId:
+    Description: Cognito user pool ID (VITE_COGNITO_USER_POOL_ID).
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Description: Public SPA app client ID, no secret (VITE_COGNITO_APP_CLIENT_ID).
+    Value: !Ref UserPoolClient
+  CognitoLoginDomain:
+    Description: Hosted login domain URL (VITE_COGNITO_DOMAIN).
+    Value: !Sub 'https://${UserPoolDomain}.auth.${AWS::Region}.amazoncognito.com'
+  CognitoIssuer:
+    Description: Token issuer the API expects.
+    Value: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}'
+  CallbackUrl:
+    Description: Registered OAuth callback URL (VITE_AUTH_REDIRECT_URI).
+    Value: !Ref CallbackUrl
+  SignOutUrl:
+    Description: Registered sign-out URL (VITE_AUTH_LOGOUT_URI).
+    Value: !Ref SignOutUrl
   TableName:
     Description: DynamoDB table name.
     Value: !Ref CareBridgeTable

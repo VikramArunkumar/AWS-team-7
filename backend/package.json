@@ -3,18 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Developer scripts for the CareBridge SAM backend (local DynamoDB, seeding). Runtime deps live in src/package.json.",
+  "description": "Developer and administrator scripts for the CareBridge SAM backend (tests, local DynamoDB, seeding, identity provisioning). Lambda runtime deps live in src/package.json.",
   "engines": {
     "node": ">=22.12.0"
   },
   "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
     "ddb:up": "docker run -d --name carebridge-ddb -p 8000:8000 amazon/dynamodb-local",
     "ddb:down": "docker rm -f carebridge-ddb",
     "ddb:create-table": "node scripts/create-local-table.js",
     "seed": "node scripts/seed.js",
+    "provision-identity": "node scripts/provision-identity.js",
     "local:api": "sam build && sam local start-api --env-vars env.local.json"
   },
   "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "3.1156.0",
     "@aws-sdk/client-dynamodb": "^3.651.0",
     "@aws-sdk/lib-dynamodb": "^3.651.0"
   }

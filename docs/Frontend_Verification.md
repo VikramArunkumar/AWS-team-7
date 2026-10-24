@@ -2,6 +2,8 @@
 
 Verified locally on October 23, 2026 with Node 22.16.0, npm 10.9.2, and the Codex in-app browser. This is a read-only frontend sample, not an operational CareBridge MVP.
 
+> **Later change:** sign-in now gates this dashboard. It appears only after Cognito sign-in when `GET /me` reports `charge_nurse`, and the dev server now runs at `http://localhost:5173`. The checks below predate that change and describe the dashboard screens themselves. For authentication verification, see the [README](../README.md#verification). The authentication limit listed below no longer applies; backend role enforcement now exists but has not been validated against live AWS.
+
 ## Checks performed
 
 | Check | Observed result |
