@@ -399,6 +399,9 @@ Resources:
               Resource:
                 - !Sub 'arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:guardrail/${GuardrailId}'
                 - !Sub 'arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:guardrail/${GuardrailId}:*'
+                # Cross-region guardrail inference is checked against this
+                # system-defined guardrail profile.
+                - !Sub 'arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:guardrail-profile/us.guardrail.v1:0'
       Events:
         CreateUpdate:
           Type: Api
@@ -448,6 +451,9 @@ Resources:
               Resource:
                 - !Sub 'arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:guardrail/${GuardrailId}'
                 - !Sub 'arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:guardrail/${GuardrailId}:*'
+                # Cross-region guardrail inference is checked against this
+                # system-defined guardrail profile.
+                - !Sub 'arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:guardrail-profile/us.guardrail.v1:0'
       Events:
         AskPolicy:
           Type: Api
