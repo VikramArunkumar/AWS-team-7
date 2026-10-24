@@ -25,7 +25,7 @@ import {
 } from '../lib/keys.js';
 import { newUpdateId, newRecId, nowIso } from '../lib/ids.js';
 import { writeAudit, AUDIT_ACTIONS } from '../lib/audit.js';
-import { processUpdate } from '../lib/bedrock.js';
+import { processUpdate, BedrockError } from '../lib/bedrock.js';
 import { authenticate, requireRole, ROLES } from '../lib/auth.js';
 import {
   ok, created, withErrorHandling, parseBody, HttpError,
@@ -246,7 +246,7 @@ async function processUpdateHandler(event) {
     result = await processUpdate({ update, patient, recentUpdates });
   } catch (err) {
     // Error names/codes only: never log update text or model output.
-    console.error('bedrock_failed', err?.name, err?.code);
+    console.error('bedrock_failed', err?.name, err?.code, err instanceof BedrockError ? err.message : '');
     await setProcessing(incidentId, updateId, 'failed');
     // Distinct from a save failure: the update is intact; only AI failed (NFR-2).
     throw new HttpError(502, 'ai_unavailable',
