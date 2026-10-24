@@ -27,7 +27,7 @@ async function askPolicy(event) {
   try {
     result = await answerPolicyQuestion(question.trim());
   } catch (err) {
-    console.error('policy_failed', err?.name, err?.code);
+    console.error('policy_failed', err?.name, err?.code, err instanceof BedrockError ? err.message : '');
     if (err instanceof BedrockError && err.code === 'not_configured') {
       throw new HttpError(503, 'policy_unavailable', 'The policy Knowledge Base is not configured.');
     }

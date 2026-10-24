@@ -79,11 +79,14 @@ export async function converseText({ system, userText, maxTokens = 1024 }) {
       modelId: MODEL_ID,
       system: [{ text: system }],
       messages: [{ role: 'user', content: [{ text: userText }] }],
-      inferenceConfig: { maxTokens, temperature: 0.2 },
+      // No temperature: current Claude models on Bedrock reject it as deprecated.
+      inferenceConfig: { maxTokens },
       guardrailConfig: { guardrailIdentifier: GUARDRAIL_ID, guardrailVersion: GUARDRAIL_VERSION },
     }));
   } catch (err) {
-    throw new BedrockError('service_error', err?.name || 'Bedrock request failed');
+    // AWS service error names and messages describe configuration or permission
+    // problems, not request content, so they are safe to keep for diagnosis.
+    throw new BedrockError('service_error', `${err?.name || 'Error'}: ${String(err?.message ?? '').slice(0, 200)}`);
   }
   if (response.stopReason === 'guardrail_intervened') {
     throw new BedrockError('guardrail_blocked', 'Guardrail blocked the response.');
