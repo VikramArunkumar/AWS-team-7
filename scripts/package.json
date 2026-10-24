@@ -1,0 +1,23 @@
+{
+  "name": "@carebridge/scripts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CareBridge operational scripts (seeding synthetic demo data, policy upload).",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "seed": "node --experimental-strip-types src/seed.ts",
+    "seed:reset": "node --experimental-strip-types src/seed.ts --reset",
+    "seed:all": "node --experimental-strip-types src/seed.ts --reset --with-policies"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.658.0",
+    "@aws-sdk/client-s3": "^3.658.0",
+    "@aws-sdk/lib-dynamodb": "^3.658.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "typescript": "^5.6.2"
+  }
+}

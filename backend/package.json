@@ -1,0 +1,27 @@
+{
+  "name": "@carebridge/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CareBridge Lambda handlers and shared domain types.",
+  "main": "src/lib/types.ts",
+  "scripts": {
+    "dev": "node ./dev.mjs",
+    "typecheck": "tsc --noEmit",
+    "build": "node ./build.mjs",
+    "test": "node --test --experimental-strip-types"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.658.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.658.0",
+    "@aws-sdk/client-dynamodb": "^3.658.0",
+    "@aws-sdk/lib-dynamodb": "^3.658.0",
+    "ulid": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.145",
+    "@types/node": "^22.7.4",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.2"
+  }
+}

@@ -1,0 +1,344 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  CareBridge MVP infrastructure skeleton (task 1.3). Defines the HTTP API,
+  a single DynamoDB table with one GSI, an S3 bucket for policy documents and
+  synthetic continuity packets, and a placeholder Lambda. Route handlers, their
+  functions, and least-privilege IAM are added in later phases.
+
+Parameters:
+  BedrockModelId:
+    Type: String
+    Default: anthropic.claude-3-5-sonnet-20240620-v1:0
+    Description: Bedrock Converse model id used for extraction and prioritization.
+  FallbackModelId:
+    Type: String
+    Default: anthropic.claude-3-haiku-20240307-v1:0
+    Description: Optional fallback Bedrock model id (stretch).
+  KbId:
+    Type: String
+    Default: ''
+    Description: Bedrock Knowledge Base id for policy Q&A (provisioned separately).
+  KbModelArn:
+    Type: String
+    Default: ''
+    Description: Model ARN used by Knowledge Base RetrieveAndGenerate.
+  CorsOrigin:
+    Type: String
+    Default: http://localhost:5173
+    Description: Allowed origin for the SPA.
+  LogLevel:
+    Type: String
+    Default: info
+    AllowedValues: [debug, info, warn, error]
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Architectures: [arm64]
+    MemorySize: 256
+    Timeout: 29
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref CareBridgeTable
+        BUCKET_NAME: !Ref PolicyBucket
+        BEDROCK_MODEL_ID: !Ref BedrockModelId
+        BEDROCK_FALLBACK_MODEL_ID: !Ref FallbackModelId
+        KB_ID: !Ref KbId
+        KB_MODEL_ARN: !Ref KbModelArn
+        CORS_ORIGIN: !Ref CorsOrigin
+        LOG_LEVEL: !Ref LogLevel
+
+Conditions:
+  HasKnowledgeBase: !Not [!Equals [!Ref KbId, '']]
+  HasKbModel: !Not [!Equals [!Ref KbModelArn, '']]
+
+Resources:
+  # --- HTTP API (API Gateway) ---
+  CareBridgeApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref CorsOrigin
+        AllowHeaders:
+          - content-type
+          - x-demo-role
+          - x-demo-user
+        AllowMethods:
+          - GET
+          - POST
+          - PATCH
+          - OPTIONS
+
+  # --- DynamoDB single table + GSI1 ---
+  CareBridgeTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: CareBridge
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # --- S3 bucket for policy docs + synthetic continuity packets ---
+  PolicyBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  # --- Placeholder health-check Lambda (replaced by real handlers later) ---
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Target: node20
+        Minify: false
+        Sourcemap: true
+        EntryPoints:
+          - health.ts
+    Properties:
+      Handler: health.handler
+      CodeUri: ../backend/src/handlers/
+      Events:
+        Health:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CareBridgeApi
+            Path: /health
+            Method: GET
+
+  # --- Process update with Bedrock (POST /updates/{id}/process) ---
+  ProcessFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Target: node20
+        Minify: false
+        Sourcemap: true
+        EntryPoints:
+          - process.ts
+    Properties:
+      Handler: process.handler
+      Timeout: 29
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CareBridgeTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:Converse
+                - bedrock:InvokeModel
+              Resource:
+                - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${BedrockModelId}'
+                - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${FallbackModelId}'
+      Events:
+        ProcessUpdate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CareBridgeApi
+            Path: /updates/{id}/process
+            Method: POST
+
+  # --- Audit history (GET /audit) ---
+  AuditFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Target: node20
+        Minify: false
+        Sourcemap: true
+        EntryPoints:
+          - audit.ts
+    Properties:
+      Handler: audit.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CareBridgeTable
+      Events:
+        ListAudit:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CareBridgeApi
+            Path: /audit
+            Method: GET
+
+  # --- Nurse updates (GET/POST /updates) ---
+  UpdatesFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Target: node20
+        Minify: false
+        Sourcemap: true
+        EntryPoints:
+          - updates.ts
+    Properties:
+      Handler: updates.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CareBridgeTable
+      Events:
+        PostUpdate:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CareBridgeApi
+            Path: /updates
+            Method: POST
+        ListUpdates:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CareBridgeApi
+            Path: /updates
+            Method: GET
+
+  # --- Recommendations (GET /recommendations, POST decision) ---
+  RecommendationsFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Target: node20
+        Minify: false
+        Sourcemap: true
+        EntryPoints:
+          - recommendations.ts
+    Properties:
+      Handler: recommendations.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CareBridgeTable
+      Events:
+        ListRecommendations:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CareBridgeApi
+            Path: /recommendations
+            Method: GET
+        DecideRecommendation:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CareBridgeApi
+            Path: /recommendations/{id}/decision
+            Method: POST
+
+  # --- Policy assistant (POST /policy/ask) ---
+  PolicyFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Target: node20
+        Minify: false
+        Sourcemap: true
+        EntryPoints:
+          - policy.ts
+    Properties:
+      Handler: policy.handler
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:RetrieveAndGenerate
+                - bedrock:Retrieve
+              Resource:
+                - !If
+                  - HasKnowledgeBase
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${KbId}'
+                  - !Ref 'AWS::NoValue'
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource:
+                - !If
+                  - HasKbModel
+                  - !Ref KbModelArn
+                  - !Ref 'AWS::NoValue'
+      Events:
+        PolicyAsk:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CareBridgeApi
+            Path: /policy/ask
+            Method: POST
+
+  # --- Outage endpoints (GET/POST /outage) ---
+  OutageFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Format: esm
+        Target: node20
+        Minify: false
+        Sourcemap: true
+        EntryPoints:
+          - outage.ts
+    Properties:
+      Handler: outage.handler
+      CodeUri: ../backend/src/handlers/
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CareBridgeTable
+      Events:
+        GetOutage:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CareBridgeApi
+            Path: /outage
+            Method: GET
+        PostOutage:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref CareBridgeApi
+            Path: /outage
+            Method: POST
+
+Outputs:
+  ApiBaseUrl:
+    Description: Base URL of the CareBridge HTTP API.
+    Value: !Sub 'https://${CareBridgeApi}.execute-api.${AWS::Region}.amazonaws.com'
+  TableName:
+    Description: DynamoDB table name.
+    Value: !Ref CareBridgeTable
+  BucketName:
+    Description: S3 bucket for policy documents and continuity packets.
+    Value: !Ref PolicyBucket

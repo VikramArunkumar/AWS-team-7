@@ -1,0 +1,22 @@
+version = 0.1
+
+[default.global.parameters]
+stack_name = "carebridge-mvp"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+region = "us-east-1"
+# Fill these in during `sam deploy --guided`:
+# parameter_overrides = "BedrockModelId=... KbId=... KbModelArn=... CorsOrigin=..."
+
+[default.sync.parameters]
+watch = true
+
+[default.validate.parameters]
+lint = true

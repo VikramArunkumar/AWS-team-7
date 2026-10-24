@@ -1,0 +1,13 @@
+{
+  "name": "@carebridge/infra",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CareBridge AWS SAM infrastructure (HTTP API, Lambda, DynamoDB, S3).",
+  "scripts": {
+    "validate": "sam validate --lint",
+    "build": "sam build",
+    "deploy": "sam deploy",
+    "deploy:guided": "sam deploy --guided",
+    "sync": "sam sync --watch"
+  }
+}
