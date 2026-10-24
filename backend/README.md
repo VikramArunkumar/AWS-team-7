@@ -30,14 +30,20 @@ Implemented and verified locally (mocked claims, no live AWS):
 - Charge nurse decisions validated in the backend: approvals and reassignments
   must name a provisioned nurse, priorities and due times are checked, and AI
   review runs at most once per update (a failed run may be retried).
-- 124 backend tests, an offline template authorization audit, `cfn-lint`, and
+- Amazon Bedrock integration behind `BEDROCK_MODE` (default `stub`). In
+  `live` mode, AI review calls the Converse API with a Guardrail, using the
+  update, the patient's continuity profile, and that patient's recent updates
+  as context. Model output is validated before it is stored, and
+  `POST /policy/ask` answers from a Bedrock Knowledge Base with citations. See
+  [Bedrock](#bedrock). Live mode is tested with a mocked Bedrock client only.
+- 143 backend tests, an offline template authorization audit, `cfn-lint`, and
   `sam validate --lint`.
 
 Deployed once to a workshop account, where hosted login and `GET /me` worked
 for nurse and charge nurse accounts. The rest of the deployed smoke test below
 (CORS on gateway errors, token revocation, wrong-client tokens) has not been
 run, and the workspace route was added after that deploy, so redeploy before
-using it. Bedrock remains a labeled stub.
+using it. The Bedrock changes have not been deployed or run against live Bedrock.
 
 ## How authentication works
 
@@ -115,11 +121,12 @@ Every route requires a provisioned account. `—` means 403.
 | POST | `/incidents/{id}/deactivate` | — | Close | FR-8 |
 | POST | `/incidents/{id}/updates` | Author is self; patient must exist | Author is self; patient must exist | FR-13–FR-16 |
 | PATCH | `/incidents/{id}/updates/{id}` | Own updates only (text, category, urgent) | Own updates only | FR-17 |
-| POST | `/incidents/{id}/updates/{id}/process` | — | Run AI stub once per update | FR-18–FR-23 |
+| POST | `/incidents/{id}/updates/{id}/process` | — | Run AI review once per update (stub or Bedrock) | FR-18–FR-23 |
 | POST | `/incidents/{id}/recommendations/{id}/approve` | — | Approve or modify; assigns a provisioned nurse and creates one task | FR-33, NFR-24 |
 | POST | `/incidents/{id}/recommendations/{id}/reject` | — | Reject, applies nothing | NFR-25 |
 | POST | `/incidents/{id}/tasks` | — | Create | FR-36 |
 | PATCH | `/incidents/{id}/tasks/{id}` | Status on own assigned task | Status, assignee, priority, due time | FR-34, FR-38 |
+| POST | `/policy/ask` | Ask | Ask | FR-26–FR-29 |
 
 The dashboard contains every patient, task, and AI recommendation for the
 incident, so nurses do not receive it just because they signed in. Nurses read
@@ -197,8 +204,11 @@ backend/
     lib/http.js                 # responses, CORS headers, errors
     lib/indicators.js           # overdue, unverified, and incident-duration rules
     lib/staff.js                # nurse checks for assignments, staff names, due-time parsing
-    lib/keys.js lib/ddb.js lib/audit.js lib/ids.js lib/bedrock.js
-    handlers/me.js incidents.js dashboard.js workspace.js updates.js recommendations.js tasks.js
+    lib/bedrock.js              # guarded Converse calls, AI review prompt and output validation
+    lib/policy-kb.js            # Knowledge Base retrieval and cited policy answers
+    lib/keys.js lib/ddb.js lib/audit.js lib/ids.js
+    handlers/me.js incidents.js dashboard.js workspace.js updates.js recommendations.js tasks.js policy.js
+  policies/                     # synthetic policy documents + metadata for the Knowledge Base
   scripts/
     provision-identity.js       # bind or remove a Cognito account mapping (admin)
     seed.js                     # load ../../src/data.js fixtures (DynamoDB Local, or --aws)
@@ -254,6 +264,119 @@ lookup only when `DYNAMODB_ENDPOINT` is set:
 DYNAMODB_ENDPOINT=http://127.0.0.1:8000 TABLE_NAME=CareBridge-dev \
   node scripts/provision-identity.js --sub 11111111-1111-4111-8111-111111111111 --app-user-id n1 --role nurse
 ```
+
+## Bedrock
+
+`src/lib/bedrock.js` holds every model call; `src/lib/policy-kb.js` adds
+Knowledge Base retrieval. Both read their settings from template parameters,
+which are identifiers, not secrets.
+
+| Parameter | Env var | Default | Meaning |
+| --- | --- | --- | --- |
+| `BedrockMode` | `BEDROCK_MODE` | `stub` | `stub` returns deterministic, labeled synthetic recommendations and calls nothing. `live` calls Bedrock. |
+| `BedrockModelId` | `BEDROCK_MODEL_ID` | `not-configured` | Model id or inference profile id for Converse. |
+| `GuardrailId`, `GuardrailVersion` | `GUARDRAIL_ID`, `GUARDRAIL_VERSION` | `not-configured`, `DRAFT` | Guardrail attached to every Converse call (NFR-12). |
+| `KnowledgeBaseId` | `KNOWLEDGE_BASE_ID` | `not-configured` | Knowledge Base holding the policies in `policies/`. |
+
+Bedrock runs in the stack's region. The model, Guardrail, and Knowledge Base
+must exist in that region, and the model must be enabled for the account.
+
+### AI review (`POST .../updates/{id}/process`)
+
+- The update is saved before AI review runs. If Bedrock fails, or its output
+  fails validation, the update is marked `failed`, nothing else is written, and
+  the API returns `502 ai_unavailable`. A failed run can be retried.
+- The prompt contains the update, the patient's continuity profile, and up to
+  ten of that patient's most recent updates. The prompt treats all of it as
+  untrusted data.
+- Model output must be a JSON object with at most five recommendations. Each
+  needs a `title`, a `reason`, a `priority` of `High`, `Moderate`, or `Low`,
+  and `sourceUpdateIds` that are a non-empty subset of the update ids
+  supplied. The whole response is rejected if any of these checks fails.
+  Extra fields are dropped, and `aiGenerated: true` and `status: 'proposed'`
+  are set by the server, not the model.
+- The suggested priority only prefills the approval form. Approval still
+  requires a charge nurse (NFR-24), and rejection applies nothing.
+- A Guardrail intervention counts as a failure (`502 ai_unavailable`). The
+  update stays intact.
+- Logs contain error names only, never update text or model output.
+
+### Policy assistant (`POST /policy/ask`)
+
+- The handler retrieves up to four passages from the Knowledge Base. If none
+  come back, it returns `found: false` without calling the model.
+- Otherwise the model answers from the numbered passages only and says which
+  passages it used. Citations (`reference`, `title`, `section`, `excerpt`) are
+  built from those retrieved passages and their metadata, never from model
+  text. A citation to a passage that was not retrieved fails validation.
+- If the model says the passages don't answer the question, the result is
+  `found: false` with no answer and no citations (FR-29).
+- Errors are distinct:
+  - Guardrail block: `422 ai_refused`.
+  - Bedrock or Knowledge Base failure: `502 ai_unavailable`.
+  - `KnowledgeBaseId` not set: `503 policy_unavailable`. The frontend then
+    falls back to its local keyword match, labeled as not an AI answer.
+- Policy questions are not written to the audit log (it is incident-scoped),
+  and question text is never logged.
+
+### Set up the AWS resources (console)
+
+1. **Model access.** In the Bedrock console for the stack's region, enable an
+   Anthropic Claude model that supports Converse. If the region requires a
+   cross-region inference profile, copy the profile id (for example one
+   starting with `us.`). Otherwise use the model id.
+2. **Guardrail.** Create a Guardrail with content filters, the prompt-attack
+   filter, and denied topics for diagnosis, prescribing, and medication
+   changes. Create a version and note the id and version number. Use `DRAFT`
+   only while iterating.
+3. **Knowledge Base.**
+   - Create an S3 bucket (encryption on, public access blocked).
+   - Upload everything in `backend/policies/`. The `.metadata.json` files
+     supply the citation title, reference, and section.
+   - Create a Knowledge Base on that bucket with any embedding model and the
+     quick-create vector store, then **Sync** it and note its id.
+   - These policies are fictional demo content.
+4. **Test in the console first.** Use the Guardrail and Knowledge Base test
+   panels to confirm a question such as "How do I verify medications during
+   downtime?" retrieves `POL-MED-04`.
+
+### Update policy content (NFR-26)
+
+Policy text lives in the Knowledge Base, not in application code. To change
+it:
+
+1. Edit or add Markdown files and their `.metadata.json` siblings.
+2. Upload them to the S3 bucket.
+3. Run **Sync** on the Knowledge Base data source.
+
+No deploy is needed.
+
+### Deploy with Bedrock enabled
+
+`--parameter-overrides` replaces the whole saved list in `samconfig.toml`, so
+pass every parameter:
+
+```bash
+sam build
+sam deploy --parameter-overrides \
+  Stage=dev CognitoDomainPrefix=<prefix> \
+  FrontendOrigin=<frontend origin> CallbackUrl=<callback> SignOutUrl=<sign-out> \
+  BedrockMode=live BedrockModelId=<model or profile id> \
+  GuardrailId=<id> GuardrailVersion=<n> KnowledgeBaseId=<id>
+```
+
+The update and policy functions have a 29-second timeout (API Gateway's
+limit). Their IAM policies allow:
+
+- `bedrock:InvokeModel` on the configured inference profile and on
+  `foundation-model/*` in any region. A cross-region profile routes to
+  foundation models in several regions, which is why the region is a
+  wildcard. Narrow it to specific model ARNs if you use a single-region model
+  id.
+- `bedrock:ApplyGuardrail` on the configured Guardrail.
+- `bedrock:Retrieve` on the configured Knowledge Base (policy function only).
+
+The deploying principal also needs IAM permission to create these policies.
 
 ## Deploy
 

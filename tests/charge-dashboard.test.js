@@ -66,6 +66,11 @@ describe('charge nurse edits', () => {
     const d = approvalDefaults({ title: 'Do x' }, { nurse: 'n2', priority: 'High' }, dir.nurses);
     assert.deepEqual(d, { assignedNurse: 'n2', priority: 'High', description: 'Do x', due: '30' });
   });
+  test('an AI-suggested priority prefills approval; an unknown value is ignored', () => {
+    const patient = { nurse: 'n2', priority: 'High' };
+    assert.equal(approvalDefaults({ title: 'x', priority: 'Low' }, patient, dir.nurses).priority, 'Low');
+    assert.equal(approvalDefaults({ title: 'x', priority: 'urgent!!' }, patient, dir.nurses).priority, 'High');
+  });
   test('recommendation sources keep missing updates visible', () => {
     const rows = sourceUpdatesFor({ sourceUpdateIds: ['U1', 'U9'] }, [{ id: 'U1', text: 'x' }]);
     assert.equal(rows[0].update.text, 'x');

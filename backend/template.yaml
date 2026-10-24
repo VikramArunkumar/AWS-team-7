@@ -47,6 +47,40 @@ Parameters:
     AllowedPattern: '^(https://[a-z0-9.-]+(:[0-9]{1,5})?|http://localhost(:[0-9]{1,5})?)/\S*$'
     ConstraintDescription: An https URL (or http://localhost[:port]/...) including a path.
 
+  # Bedrock (FR-18 to FR-29, NFR-12). Identifiers only, not secrets. With the
+  # default BedrockMode=stub nothing calls Bedrock and the other values are unused.
+  BedrockMode:
+    Type: String
+    Default: stub
+    AllowedValues: [stub, live]
+    Description: stub returns deterministic synthetic output; live calls Bedrock Converse with the Guardrail.
+
+  BedrockModelId:
+    Type: String
+    Default: not-configured
+    Description: >
+      Bedrock model or inference profile id used with Converse (for a
+      cross-region profile, the id starts with a geography prefix such as "us.").
+    AllowedPattern: '^[A-Za-z0-9.:_-]+$'
+
+  GuardrailId:
+    Type: String
+    Default: not-configured
+    Description: Bedrock Guardrail id applied to every model call.
+    AllowedPattern: '^[A-Za-z0-9-]+$'
+
+  GuardrailVersion:
+    Type: String
+    Default: DRAFT
+    Description: Guardrail version number, or DRAFT.
+    AllowedPattern: '^(DRAFT|[0-9]+)$'
+
+  KnowledgeBaseId:
+    Type: String
+    Default: not-configured
+    Description: Bedrock Knowledge Base id holding the synthetic facility policies.
+    AllowedPattern: '^[A-Za-z0-9-]+$'
+
 Globals:
   Function:
     Runtime: nodejs22.x
@@ -57,9 +91,13 @@ Globals:
     Environment:
       Variables:
         TABLE_NAME: !Ref CareBridgeTable
-        # Bedrock settings are placeholders until the AI integration is wired up.
-        BEDROCK_REGION: us-east-1
-        BEDROCK_MODEL_ID: anthropic.claude-3-5-sonnet-20240620-v1:0
+        # Bedrock runs in the stack's region (src/lib/bedrock.js).
+        BEDROCK_MODE: !Ref BedrockMode
+        BEDROCK_REGION: !Ref AWS::Region
+        BEDROCK_MODEL_ID: !Ref BedrockModelId
+        GUARDRAIL_ID: !Ref GuardrailId
+        GUARDRAIL_VERSION: !Ref GuardrailVersion
+        KNOWLEDGE_BASE_ID: !Ref KnowledgeBaseId
         # Lambda re-validates the verified claims against these values
         # (src/lib/auth.js). They are identifiers, not secrets.
         COGNITO_APP_CLIENT_ID: !Ref UserPoolClient
@@ -337,9 +375,24 @@ Resources:
     Properties:
       Handler: handlers/updates.handler
       CodeUri: src/
+      # AI review can take 10-15 s (README target); API Gateway caps at 29 s.
+      Timeout: 29
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref CareBridgeTable
+        # Least privilege: only Converse on the configured model/profile, only
+        # with the configured Guardrail. A cross-region inference profile
+        # routes to the underlying foundation model in several regions, hence
+        # the region wildcard on foundation-model.
+        - Statement:
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}'
+                - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
+            - Effect: Allow
+              Action: bedrock:ApplyGuardrail
+              Resource: !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:guardrail/${GuardrailId}'
       Events:
         CreateUpdate:
           Type: Api
@@ -358,6 +411,37 @@ Resources:
           Properties:
             RestApiId: !Ref CareBridgeApi
             Path: /incidents/{incidentId}/updates/{updateId}/process
+            Method: post
+
+  # FR-26 to FR-29: policy questions answered from the Bedrock Knowledge Base.
+  PolicyFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/policy.handler
+      CodeUri: src/
+      Timeout: 29
+      Policies:
+        # Read-only: authenticate() resolves the identity mapping.
+        - DynamoDBReadPolicy:
+            TableName: !Ref CareBridgeTable
+        - Statement:
+            - Effect: Allow
+              Action: bedrock:Retrieve
+              Resource: !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:knowledge-base/${KnowledgeBaseId}'
+            - Effect: Allow
+              Action: bedrock:InvokeModel
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}'
+                - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
+            - Effect: Allow
+              Action: bedrock:ApplyGuardrail
+              Resource: !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:guardrail/${GuardrailId}'
+      Events:
+        AskPolicy:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CareBridgeApi
+            Path: /policy/ask
             Method: post
 
   RecommendationsFunction:

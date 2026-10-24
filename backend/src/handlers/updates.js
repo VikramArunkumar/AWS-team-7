@@ -15,11 +15,13 @@
 //   process - charge nurse only; the resulting recommendations are reviewed
 //             by the charge nurse (FR-32, FR-33)
 
-import { PutCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  PutCommand, GetCommand, UpdateCommand, QueryCommand,
+} from '@aws-sdk/lib-dynamodb';
 import { ddb, TABLE_NAME } from '../lib/ddb.js';
 import { createHash } from 'node:crypto';
 import {
-  updateKey, recommendationKey, incidentMetaKey, patientKey, ENTITY,
+  updateKey, recommendationKey, incidentMetaKey, patientKey, incidentPk, ENTITY,
 } from '../lib/keys.js';
 import { newUpdateId, newRecId, nowIso } from '../lib/ids.js';
 import { writeAudit, AUDIT_ACTIONS } from '../lib/audit.js';
@@ -240,9 +242,11 @@ async function processUpdateHandler(event) {
 
   let result;
   try {
-    result = await processUpdate({ update });
+    const { patient, recentUpdates } = await loadPatientContext(incidentId, update.patient);
+    result = await processUpdate({ update, patient, recentUpdates });
   } catch (err) {
-    console.error('bedrock_failed', err?.name);
+    // Error names/codes only: never log update text or model output.
+    console.error('bedrock_failed', err?.name, err?.code);
     await setProcessing(incidentId, updateId, 'failed');
     // Distinct from a save failure: the update is intact; only AI failed (NFR-2).
     throw new HttpError(502, 'ai_unavailable',
@@ -260,6 +264,7 @@ async function processUpdateHandler(event) {
       patient: update.patient,
       title: rec.title,
       reason: rec.reason,                      // NFR-22: concise explanation
+      priority: rec.priority,                  // FR-21: suggested priority, editable on approval
       sourceUpdateIds: rec.sourceUpdateIds,    // FR-22 / NFR-23: supporting sources
       aiGenerated: true,                       // FR-23: labeled as AI output
       status: 'proposed',                      // requires human approval (NFR-24)
@@ -284,6 +289,31 @@ async function processUpdateHandler(event) {
     verifyBeforeActing: true, // FR-24
     recommendations,
   });
+}
+
+// Read-only context for the model: the patient's continuity profile and their
+// most recent updates (FR-20, FR-21). Their ids become the only sources the
+// model may cite.
+async function loadPatientContext(incidentId, patientId) {
+  const items = [];
+  let ExclusiveStartKey;
+  do {
+    const res = await ddb.send(new QueryCommand({
+      TableName: TABLE_NAME,
+      KeyConditionExpression: 'PK = :pk',
+      ExpressionAttributeValues: { ':pk': incidentPk(incidentId) },
+      ExclusiveStartKey,
+    }));
+    items.push(...(res.Items || []));
+    ExclusiveStartKey = res.LastEvaluatedKey;
+  } while (ExclusiveStartKey);
+
+  const patient = items.find((i) => i.entity === ENTITY.PATIENT && i.id === patientId) ?? null;
+  const recentUpdates = items
+    .filter((i) => i.entity === ENTITY.UPDATE && i.patient === patientId)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .slice(0, 10);
+  return { patient, recentUpdates };
 }
 
 async function setProcessing(incidentId, updateId, status) {
