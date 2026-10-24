@@ -112,3 +112,30 @@ describe('nurse workspace calls', () => {
     assert.equal(calls[0].url, `${BASE}/incidents/INC-0042/tasks/..%2Fme%3Fx%3D1`);
   });
 });
+
+describe('charge nurse calls', () => {
+  const client = (calls) => createApiClient({
+    baseUrl: BASE, getAccessToken: () => TOKEN, fetchImpl: async (url, init) => { calls.push({ url, init }); return jsonResponse(200, {}); },
+  });
+
+  test('dashboard, decisions, AI review, and task edits use the documented routes', async () => {
+    const calls = [];
+    const api = client(calls);
+    await api.getDashboard('INC-0042');
+    await api.approveRecommendation('INC-0042', 'REC-01', { assignedNurse: 'n2', priority: 'High', description: 'Do x', dueAt: null });
+    await api.rejectRecommendation('INC-0042', 'REC-02', { reason: '' });
+    await api.processUpdate('INC-0042', 'UPD-104');
+    await api.updateTask('INC-0042', 'TSK-201', { assignedNurse: 'n3' });
+    assert.deepEqual(calls.map((c) => `${c.init.method} ${c.url.slice(BASE.length)}`), [
+      'GET /incidents/INC-0042/dashboard',
+      'POST /incidents/INC-0042/recommendations/REC-01/approve',
+      'POST /incidents/INC-0042/recommendations/REC-02/reject',
+      'POST /incidents/INC-0042/updates/UPD-104/process',
+      'PATCH /incidents/INC-0042/tasks/TSK-201',
+    ]);
+    assert.deepEqual(JSON.parse(calls[1].init.body), { assignedNurse: 'n2', priority: 'High', description: 'Do x', dueAt: null });
+    assert.deepEqual(JSON.parse(calls[2].init.body), {}, 'empty reason is omitted');
+    assert.equal(calls[3].init.body, undefined);
+    assert.deepEqual(JSON.parse(calls[4].init.body), { assignedNurse: 'n3' });
+  });
+});

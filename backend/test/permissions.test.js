@@ -35,7 +35,7 @@ const ROUTES = {
   }],
   processUpdate: [updates, {
     method: 'POST', resource: '/incidents/{incidentId}/updates/{updateId}/process',
-    pathParameters: { incidentId: id, updateId: 'UPD-101' },
+    pathParameters: { incidentId: id, updateId: 'UPD-104' },
   }],
   approve: [recommendations, {
     method: 'POST', resource: '/incidents/{incidentId}/recommendations/{recommendationId}/approve',

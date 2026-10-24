@@ -7,7 +7,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Activity, ArrowRight, ArrowUpRight, CheckCheck, ChevronRight, CircleHelp, ClipboardCheck, ClipboardList, Clock3, FileText, HeartPulse, LayoutDashboard, LoaderCircle, LogOut, Menu, Plus, RefreshCw, Send, ShieldCheck, TriangleAlert, X } from 'lucide-react';
-import { Badge, Priority } from './main.jsx';
+import { Badge, Priority } from './ui.jsx';
 import { updateCategories, minutesSince, formatTime } from './data.js';
 import { initialsFor } from './auth/AuthGate.jsx';
 import { SessionExpiredError } from './api/client.js';

@@ -11,11 +11,11 @@ import { taskKey, taskGsi1, ENTITY } from '../lib/keys.js';
 import { newTaskId, nowIso } from '../lib/ids.js';
 import { writeAudit, AUDIT_ACTIONS } from '../lib/audit.js';
 import { authenticate, requireRole, ROLES } from '../lib/auth.js';
+import { assertNurse, parseDueAt, PRIORITIES } from '../lib/staff.js';
 import {
   ok, created, withErrorHandling, parseBody, HttpError,
 } from '../lib/http.js';
 
-const PRIORITIES = ['High', 'Moderate', 'Low'];
 // Status transitions nurses may self-report on their assigned work (FR-38).
 const NURSE_STATUSES = ['In progress', 'Completed', 'Delayed', 'Unable to complete'];
 
@@ -33,6 +33,8 @@ async function createTask(event) {
   const taskId = newTaskId();
   const createdAt = nowIso();
   const nurse = body.assignedNurse ?? null;
+  if (nurse !== null) await assertNurse(nurse);
+  const dueAt = parseDueAt(body.dueAt);
   const item = {
     ...taskKey(incidentId, taskId),
     ...(nurse ? taskGsi1(incidentId, nurse, taskId) : {}),
@@ -43,7 +45,7 @@ async function createTask(event) {
     description: body.description,
     priority,
     nurse,
-    dueAt: body.dueAt ?? null,
+    dueAt,
     status: 'Unconfirmed',
     creator: actor.userId, // FR-37
     createdAt,
@@ -100,6 +102,8 @@ async function patchTask(event) {
   if (body.status !== undefined && !NURSE_STATUSES.includes(body.status)) {
     throw new HttpError(400, 'invalid_status', 'Unknown task status.');
   }
+  if (wantsReassign) await assertNurse(body.assignedNurse);
+  const dueAt = wantsDue ? parseDueAt(body.dueAt) : undefined;
 
   const sets = [];
   const names = {};
@@ -130,8 +134,8 @@ async function patchTask(event) {
   }
   if (wantsDue) {
     sets.push('dueAt = :dueAt');
-    values[':dueAt'] = body.dueAt;
-    audit.dueAt = body.dueAt;
+    values[':dueAt'] = dueAt;
+    audit.dueAt = dueAt;
   }
   if (sets.length === 0) {
     throw new HttpError(400, 'nothing_to_update', 'No supported fields provided.');

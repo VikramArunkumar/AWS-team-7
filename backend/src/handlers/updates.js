@@ -220,6 +220,24 @@ async function processUpdateHandler(event) {
   if (!existing.Item) throw new HttpError(404, 'not_found', 'Update not found.');
   const update = existing.Item;
 
+  // Claim the update for processing. A retry, double click, or concurrent
+  // request cannot run the model twice and duplicate recommendations; an
+  // update whose processing failed may be retried.
+  try {
+    await ddb.send(new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: updateKey(incidentId, updateId),
+      ConditionExpression: 'attribute_exists(PK) AND processing <> :pending AND processing <> :processed',
+      UpdateExpression: 'SET processing = :pending',
+      ExpressionAttributeValues: { ':pending': 'pending', ':processed': 'processed' },
+    }));
+  } catch (err) {
+    if (err.name === 'ConditionalCheckFailedException') {
+      throw new HttpError(409, 'already_processed', 'AI review already ran or is running for this update.');
+    }
+    throw err;
+  }
+
   let result;
   try {
     result = await processUpdate({ update });
