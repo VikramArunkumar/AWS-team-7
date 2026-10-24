@@ -46,7 +46,7 @@ const initialUsers = [
   { id: 'u5', name: 'David Park',      email: 'd.park@westbrook.demo',    role: 'Nurse',               status: 'Active',   lastSeen: '19m ago' },
   { id: 'u6', name: 'Emily Brooks',    email: 'e.brooks@westbrook.demo',  role: 'Nurse',               status: 'On break', lastSeen: '34m ago' },
   { id: 'u7', name: 'Alex Morgan',     email: 'a.morgan@westbrook.demo',  role: 'Nurse',               status: 'Active',   lastSeen: '1m ago' },
-  { id: 'u8', name: 'Admin Account',   email: 'admin@westbrook.demo',     role: 'System administrator',status: 'Active',   lastSeen: 'Now' },
+  { id: 'u8', name: 'Demo Admin (fixture)', email: 'admin@westbrook.demo', role: 'System administrator',status: 'Active',   lastSeen: '—' },
   { id: 'u9', name: 'Rachel Torres',   email: 'r.torres@westbrook.demo',  role: 'Nurse',               status: 'Inactive', lastSeen: '3d ago' },
 ];
 
@@ -115,11 +115,13 @@ function UserManagement() {
         </span>
       </div>
 
-      {notice && (
-        <div className="admin-toast">
-          <CheckCheck size={14} /> {notice}
-        </div>
-      )}
+      <div className="admin-toast-region" role="status" aria-live="polite">
+        {notice && (
+          <div className="admin-toast">
+            <CheckCheck size={14} /> {notice}
+          </div>
+        )}
+      </div>
 
       <div className="admin-toolbar">
         <label className="search-field admin-search">
@@ -208,7 +210,7 @@ function UserManagement() {
 
       <div className="admin-table-footer">
         <span>{filtered.length} of {users.length} account{users.length !== 1 ? 's' : ''}</span>
-        <span><Shield size={12} /> Role-based access enforced by backend (not connected)</span>
+        <span><Shield size={12} /> Role-based access must be enforced by the backend (not yet connected)</span>
       </div>
     </div>
   );
@@ -232,24 +234,26 @@ function PatientDataManagement() {
       <SectionHeading
         icon={Database}
         title="Synthetic patient data"
-        subtitle="Manage the continuity data fixtures used during the demo. All records are fictional."
+        subtitle="Review the continuity data fixtures used during the demo. All records are fictional."
         action={
-          <button className="primary-button admin-add-btn" onClick={() => toast('Patient creation is a placeholder in this prototype.')}>
-            <Plus size={15} /> Add patient record
+          <button className="primary-button admin-add-btn" disabled title="Preview only — requires an authorized backend">
+            <Plus size={15} /> Add patient record · preview
           </button>
         }
       />
 
-      {notice && (
-        <div className="admin-toast">
-          <CheckCheck size={14} /> {notice}
-        </div>
-      )}
+      <div className="admin-toast-region" role="status" aria-live="polite">
+        {notice && (
+          <div className="admin-toast">
+            <CheckCheck size={14} /> {notice}
+          </div>
+        )}
+      </div>
 
       <div className="notice admin-notice" style={{ marginBottom: 0 }}>
         <Shield size={14} />
         <span>
-          Use synthetic data only. Never introduce real patient information into fixtures, prompts, or screenshots (NFR-10).
+          Use synthetic data only; never introduce real patient information into fixtures, prompts, or screenshots (NFR-10). Record controls are visual previews and require an authorized backend (NFR-8). Hiding a control is not authorization.
         </span>
       </div>
 
@@ -303,17 +307,17 @@ function PatientDataManagement() {
                     <div className="admin-row-actions">
                       <button
                         className="icon-button"
-                        title="Edit record (preview only)"
-                        onClick={() => toast(`Edit for ${p.name} is a placeholder in this prototype.`)}
-                        aria-label={`Edit ${p.name}`}
+                        title="Edit record (preview only — requires authorized backend)"
+                        onClick={() => toast('Patient data changes are previews. An authorized backend is required (NFR-8).')}
+                        aria-label={`Edit ${p.name} (preview only)`}
                       >
                         <Edit3 size={14} />
                       </button>
                       <button
                         className="icon-button admin-delete-btn"
-                        title="Remove record (preview only)"
-                        onClick={() => toast(`Delete is a placeholder in this prototype.`)}
-                        aria-label={`Remove ${p.name}`}
+                        title="Remove record (preview only — requires authorized backend)"
+                        onClick={() => toast('Patient data changes are previews. An authorized backend is required (NFR-8).')}
+                        aria-label={`Remove ${p.name} (preview only)`}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -375,11 +379,13 @@ function PolicyManagement() {
         }
       />
 
-      {notice && (
-        <div className="admin-toast">
-          <CheckCheck size={14} /> {notice}
-        </div>
-      )}
+      <div className="admin-toast-region" role="status" aria-live="polite">
+        {notice && (
+          <div className="admin-toast">
+            <CheckCheck size={14} /> {notice}
+          </div>
+        )}
+      </div>
 
       <div className="admin-stat-row">
         <div className="admin-stat-chip"><BookOpen size={13} />{policies.length} documents</div>
@@ -451,7 +457,7 @@ function PolicyManagement() {
                     <button
                       className="icon-button"
                       title="Re-sync to Knowledge Base (preview only)"
-                      onClick={() => toast(`Re-sync for "${pol.title}" is a preview. Connect Bedrock to enable.`)}
+                      onClick={() => toast('Knowledge Base changes are previews. Connect Bedrock and an authorized backend to enable (NFR-26).')}
                       aria-label={`Sync ${pol.title} (preview only)`}
                     >
                       <RefreshCw size={14} />
@@ -459,7 +465,7 @@ function PolicyManagement() {
                     <button
                       className="icon-button admin-delete-btn"
                       title="Delete document (preview only)"
-                      onClick={() => toast(`Delete is a preview in this prototype.`)}
+                      onClick={() => toast('Knowledge Base changes are previews. Connect Bedrock and an authorized backend to enable (NFR-26).')}
                       aria-label={`Delete ${pol.title} (preview only)`}
                     >
                       <Trash2 size={14} />
@@ -517,11 +523,13 @@ function IncidentConfig() {
         </span>
       </div>
 
-      {notice && (
-        <div className="admin-toast">
-          <CheckCheck size={14} /> {notice}
-        </div>
-      )}
+      <div className="admin-toast-region" role="status" aria-live="polite">
+        {notice && (
+          <div className="admin-toast">
+            <CheckCheck size={14} /> {notice}
+          </div>
+        )}
+      </div>
 
       <div className="admin-incident-grid">
         {types.map((t) => (
