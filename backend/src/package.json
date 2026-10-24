@@ -1,0 +1,14 @@
+{
+  "name": "carebridge-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CareBridge serverless backend (SAM): single-table DynamoDB, API Gateway + Lambda. Synthetic data only.",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.651.0",
+    "@aws-sdk/lib-dynamodb": "^3.651.0"
+  }
+}

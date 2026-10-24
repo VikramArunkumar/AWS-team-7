@@ -1,0 +1,184 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  CareBridge backend. Single-table DynamoDB persistence with an API Gateway + Lambda
+  surface for incidents, patient continuity profiles, nurse updates, tasks,
+  AI recommendations, and an append-only audit log. Synthetic data only.
+
+Globals:
+  Function:
+    Runtime: nodejs22.x
+    Architectures: [arm64]
+    MemorySize: 256
+    Timeout: 10
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref CareBridgeTable
+        # Bedrock settings are placeholders until the AI integration is wired up.
+        BEDROCK_REGION: us-east-1
+        BEDROCK_MODEL_ID: anthropic.claude-3-5-sonnet-20240620-v1:0
+    Tracing: Active
+  Api:
+    TracingEnabled: true
+    Cors:
+      AllowMethods: "'GET,POST,PATCH,OPTIONS'"
+      AllowHeaders: "'Content-Type,Authorization,X-User-Id,X-User-Role'"
+      AllowOrigin: "'*'"
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, demo]
+    Description: Deployment stage label used for the API stage name.
+
+Resources:
+  CareBridgeTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub 'CareBridge-${Stage}'
+      BillingMode: PAY_PER_REQUEST
+      # NFR-9: encryption at rest. SSE with the DynamoDB-owned key by default;
+      # swap in a CMK (KMSMasterKeyId) if the demo needs key control.
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        # GSI1 answers "a nurse's assigned tasks" (FR-38) and similar
+        # actor-scoped lookups without scanning the incident partition.
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  IncidentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/incidents.handler
+      CodeUri: src/
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CareBridgeTable
+      Events:
+        CreateIncident:
+          Type: Api
+          Properties:
+            Path: /incidents
+            Method: post
+        GetIncident:
+          Type: Api
+          Properties:
+            Path: /incidents/{incidentId}
+            Method: get
+        DeactivateIncident:
+          Type: Api
+          Properties:
+            Path: /incidents/{incidentId}/deactivate
+            Method: post
+
+  DashboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/dashboard.handler
+      CodeUri: src/
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref CareBridgeTable
+      Events:
+        GetDashboard:
+          Type: Api
+          Properties:
+            Path: /incidents/{incidentId}/dashboard
+            Method: get
+
+  UpdatesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/updates.handler
+      CodeUri: src/
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CareBridgeTable
+      Events:
+        CreateUpdate:
+          Type: Api
+          Properties:
+            Path: /incidents/{incidentId}/updates
+            Method: post
+        EditUpdate:
+          Type: Api
+          Properties:
+            Path: /incidents/{incidentId}/updates/{updateId}
+            Method: patch
+        ProcessUpdate:
+          Type: Api
+          Properties:
+            Path: /incidents/{incidentId}/updates/{updateId}/process
+            Method: post
+
+  RecommendationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/recommendations.handler
+      CodeUri: src/
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CareBridgeTable
+      Events:
+        ApproveRecommendation:
+          Type: Api
+          Properties:
+            Path: /incidents/{incidentId}/recommendations/{recommendationId}/approve
+            Method: post
+        RejectRecommendation:
+          Type: Api
+          Properties:
+            Path: /incidents/{incidentId}/recommendations/{recommendationId}/reject
+            Method: post
+
+  TasksFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/tasks.handler
+      CodeUri: src/
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CareBridgeTable
+      Events:
+        CreateTask:
+          Type: Api
+          Properties:
+            Path: /incidents/{incidentId}/tasks
+            Method: post
+        UpdateTaskStatus:
+          Type: Api
+          Properties:
+            Path: /incidents/{incidentId}/tasks/{taskId}
+            Method: patch
+
+Outputs:
+  ApiBaseUrl:
+    Description: Base URL for the CareBridge API.
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}'
+  TableName:
+    Description: DynamoDB table name.
+    Value: !Ref CareBridgeTable
