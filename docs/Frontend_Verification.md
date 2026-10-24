@@ -1,10 +1,10 @@
-# Charge nurse visual prototype verification
+# CareBridge visual prototype verification
 
-Verified locally on October 23, 2026 with Node 22.16.0, npm 10.9.2, and the Codex in-app browser. This is a read-only frontend sample, not an operational CareBridge MVP.
+Verified locally on October 23, 2026 with Node 22.16.0, npm 10.9.2, and the Codex in-app browser. This is a frontend sample, not an operational CareBridge MVP. The charge nurse view is read-only; the nurse view adds session-only interactive state.
 
-> **Later change:** sign-in now gates this dashboard. It appears only after Cognito sign-in when `GET /me` reports `charge_nurse`, and the dev server now runs at `http://localhost:5173`. The checks below predate that change and describe the dashboard screens themselves. For authentication verification, see the [README](../README.md#verification). The authentication limit listed below no longer applies; backend role enforcement now exists but has not been validated against live AWS.
+> **Later change:** sign-in now gates these screens. After Cognito sign-in, the charge nurse view appears only when `GET /me` reports `charge_nurse`, and the nurse view only when it reports `nurse`. The dev server now runs at `http://localhost:5173`. The checks below predate that change and describe the screens themselves; steps that mention the role toggle or demo profiles no longer apply. For authentication verification, see the [README](../README.md#verification). The authentication limit listed below no longer applies; backend role enforcement now exists but has not been validated against live AWS.
 
-## Checks performed
+## Charge nurse view — checks performed
 
 | Check | Observed result |
 | --- | --- |
@@ -26,6 +26,33 @@ Verified locally on October 23, 2026 with Node 22.16.0, npm 10.9.2, and the Code
 
 The temporary responsive preview harness was removed after checking. Mobile and tablet checks exercised CSS layout in browser iframes, not physical devices or touch hardware. Small screens scroll the patient table horizontally within its panel.
 
+## Nurse view — checks performed
+
+Verified after adding the nurse view. The view is scoped to one fictional nurse (Sarah Chen, `n1`). Build and dev-server checks cover the whole app, including this view. Logic and fixture checks were run as one-off Node assertions against `src/data.js`; the assertion harness was removed after checking.
+
+| Check | Observed result |
+| --- | --- |
+| `npm run build` after nurse view | Production bundle generated successfully with no errors (1566 modules transformed). |
+| `npm run dev` hot reload | Vite reloaded each nurse-view edit on loopback without errors. |
+| Patient/task scope | Assertions confirmed the view shows only `n1`'s records: 2 patients and 2 tasks, with no other nurse's patients or tasks leaking in. |
+| Initial nurse indicators | Assertions confirmed 2 patients, 2 tasks, 1 overdue task, and 1 high-priority patient for `n1`; the attention banner condition is met. |
+| Continuity profile (FR-9) | Assertions confirmed every patient has allergies, critical medications, relevant conditions, care priorities, and a risk-indicator list of the expected types. |
+| Task metadata (FR-37) | Assertions confirmed each task carries description, patient, priority, assigned nurse, due time, status, creator, and timestamp, and links to a real patient. |
+| Update categories (FR-13/14) | Assertions confirmed multiple categories including a supply request. |
+| Freshness boundary (FR-11) | Assertions confirmed exactly 60 minutes is current; more than 60 minutes or no timestamp is unverified. |
+| Update links | Assertions confirmed the nurse's updates link to real patients and that elapsed-minute math is non-negative. |
+
+Interactive behavior exercised by reproduce steps below (session state only, resets on reload): task status changes to completed, delayed, or unable to complete, with inline confirmation and undo; submitting a nurse update with an urgent flag; and correcting a submitted update while keeping prior versions as history.
+
+## Reproduce the nurse view checks
+
+1. Run `npm run dev` and open the printed local URL. Use the top-bar toggle to switch from **Charge nurse** to **Nurse**.
+2. On **My shift**, confirm the attention banner reports 1 overdue task and 1 high-priority patient, and that its buttons jump to My tasks / My patients.
+3. Open **My patients**, open a patient, and confirm the continuity profile (allergies, medications, conditions, care priorities, risk indicators), the patient's recent updates, and the open tasks for that patient.
+4. Open **My tasks**. Mark a task complete, then report another as delayed and a third as unable to complete; confirm the inline confirmation and the undo on each changed card.
+5. Open **Submit update**, choose a patient, add text, set the urgent flag, and submit; confirm the recorded update shows your name and timestamp with the original text. Then choose **Correct this update**, change the text, save, and confirm the prior version appears under correction history.
+6. Resize to mobile and tablet widths; confirm the continuity-profile grid stacks to one column and the navigation collapses behind the menu button.
+
 ## Reproduce the main visual checks
 
 1. Run `npm install` and `npm run dev`, then open the printed local URL.
@@ -37,8 +64,8 @@ The temporary responsive preview harness was removed after checking. Mobile and 
 
 ## Limits
 
-- No automated application test suite was added for this visual prototype. Fixture checks were executed as one-off Node assertions; the UI checks above were browser-driven.
-- Authentication, backend role enforcement, update writes/corrections, shared persistence, audited decisions, assignment mutations, and retry/idempotency behavior do not exist here. Disabled decision controls are not a substitute for backend approval enforcement (NFR-24).
+- No automated application test suite was added for this visual prototype. Fixture and nurse-view logic checks were executed as one-off Node assertions; the charge nurse UI checks were browser-driven, and the nurse-view interactive steps are the reproduce steps above rather than a recorded automated run.
+- Authentication, backend role enforcement, shared persistence, audited decisions, assignment mutations, and retry/idempotency behavior do not exist here. The nurse view's update writes, corrections, and task status changes are held in browser session state only and reset on reload; they are not persisted, audited, or sent to the charge nurse view, and the role toggle is not authorization. Disabled decision controls are not a substitute for backend approval enforcement (NFR-24).
 - AI content is authored fixture data. Bedrock, Guardrails, Knowledge Base retrieval, and live AWS behavior have not been implemented or verified.
 - The AI failure example demonstrates presentation only; it does not test a real failed request or durable update save.
 - Build success and local HTTP readiness do not establish NFR-4's dashboard load target. No controlled end-to-end load measurement, clinical usability timing, or production performance result is claimed. AI latency and persistence targets cannot be measured with this sample.
