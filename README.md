@@ -6,7 +6,7 @@ CareBridge assumes electricity and basic internet connectivity remain available.
 
 ## Project status
 
-This repository is at the requirements stage. It currently contains project documentation and the [CareBridge requirements](CareBridge_Requirements_Sanitized.docx); application code, infrastructure, and automated tests have not yet been added. Features and architecture described below are planned, not implemented.
+This repository is at the requirements stage. It currently contains project documentation and the [CareBridge requirements](docs/CareBridge_Requirements.md); application code, infrastructure, and automated tests have not yet been added. Features and architecture described below are planned, not implemented.
 
 The project targets an 18-hour hackathon build using **synthetic patient data only**. It is a demonstration, with no claim of production readiness or regulatory certification.
 
@@ -126,4 +126,4 @@ Before integrating AWS, select a region and a supported Bedrock model, establish
 
 ## Contributing
 
-Read [AGENTS.md](AGENTS.md) before making changes. Use the [requirements document](CareBridge_Requirements_Sanitized.docx) for detailed acceptance criteria and preserve its FR/NFR identifiers when describing implementation coverage. Update this README as features, architecture decisions, and verified development commands are added.
+Read [AGENTS.md](AGENTS.md) before making changes. Use the [requirements document](docs/CareBridge_Requirements.md) for detailed acceptance criteria and preserve its FR/NFR identifiers when describing implementation coverage. Update this README as features, architecture decisions, and verified development commands are added.

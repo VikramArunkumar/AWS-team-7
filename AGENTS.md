@@ -7,7 +7,7 @@ These instructions apply throughout this repository. Follow any more specific in
 CareBridge supports hospital nurses and charge nurses coordinating care during an EHR or hospital software outage. Electricity and basic internet connectivity are assumed to remain available. The project is an 18-hour hackathon demonstration using synthetic patient data.
 
 - Read `README.md` for scope, current status, and the proposed architecture.
-- Treat `CareBridge_Requirements_Sanitized.docx` as the product requirements source. Preserve FR-1–FR-43 and NFR-1–NFR-33 identifiers when referencing requirements; do not invent new requirements under those identifiers.
+- Treat `docs/CareBridge_Requirements.md` as the product requirements source. Preserve FR-1–FR-43 and NFR-1–NFR-33 identifiers when referencing requirements; do not invent new requirements under those identifiers.
 - The repository starts with documentation only. Do not describe a planned feature, AWS resource, test, or command as implemented until it exists and has been verified.
 - The README's optional AWS service choices are proposals. Inspect the repository before selecting frameworks, creating directories, or assuming commands and dependencies.
 
