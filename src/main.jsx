@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { createRoot } from 'react-dom/client';
 import { Activity, ArrowDown, ArrowRight, ArrowUpRight, Bell, BookOpen, CheckCheck, ChevronRight, CircleHelp, ClipboardCheck, ClipboardList, Clock3, FileText, HeartPulse, LayoutDashboard, Menu, Plus, Search, Send, ShieldCheck, SlidersHorizontal, Sparkles, TriangleAlert, Users, X } from 'lucide-react';
 import { demoNow, incident, nurses, patients, updates, tasks, recommendations, currentNurseId, updateCategories, isUnverified, minutesSince, formatTime } from './data.js';
 import './styles.css';
@@ -15,7 +14,7 @@ function Badge({ children, tone = 'neutral' }) { return <span className={`badge 
 function Avatar({ nurse, small = false }) { return <span className={`avatar ${nurse.tone} ${small ? 'small' : ''}`}>{nurse.initials}</span>; }
 function Priority({ value }) { return <Badge tone={value === 'High' ? 'red' : value === 'Moderate' ? 'amber' : 'green'}><span className="status-dot" />{value}</Badge>; }
 
-function App({ role, setRole }) {
+export function App({ role, setRole }) {
   const [page, setPage] = useState('Overview');
   const [now, setNow] = useState(demoNow);
   const [search, setSearch] = useState('');
@@ -99,7 +98,7 @@ function App({ role, setRole }) {
 
 const statusTone = (status) => status === 'Completed' ? 'green' : (status === 'Delayed' || status === 'Unable to complete') ? 'red' : status === 'Unconfirmed' ? 'amber' : 'teal';
 
-function NurseView({ role, setRole }) {
+export function NurseView({ role, setRole }) {
   const nurse = nurses.find((entry) => entry.id === currentNurseId);
   const [now, setNow] = useState(demoNow);
   const [page, setPage] = useState('My shift');
@@ -255,16 +254,10 @@ function NurseView({ role, setRole }) {
   </div>;
 }
 
-function RoleToggle({ role, setRole }) {
+export function RoleToggle({ role, setRole }) {
   return <div className="role-toggle" role="group" aria-label="Switch role view">
     <button className={role === 'charge' ? 'active' : ''} aria-pressed={role === 'charge'} onClick={() => setRole('charge')}>Charge nurse</button>
     <button className={role === 'nurse' ? 'active' : ''} aria-pressed={role === 'nurse'} onClick={() => setRole('nurse')}>Nurse</button>
   </div>;
 }
 
-function Root() {
-  const [role, setRole] = useState('charge');
-  return role === 'nurse' ? <NurseView role={role} setRole={setRole} /> : <App role={role} setRole={setRole} />;
-}
-
-createRoot(document.getElementById('root')).render(<Root />);
