@@ -6,9 +6,9 @@ CareBridge assumes electricity and basic internet connectivity remain available.
 
 ## Project status
 
-This repository contains a **local charge nurse visual prototype**, built with React and Vite, alongside the [CareBridge requirements](docs/CareBridge_Requirements.md). The prototype uses synthetic fixtures and a calm, light interface with teal accents. It is not the operational MVP: backend services, authentication, shared persistence, AWS infrastructure, and live AI integrations are not implemented. The broader features and AWS architecture below remain planned unless explicitly listed here.
+This repository contains a **local visual prototype** with both a charge nurse view and a nurse view, built with React and Vite, alongside the [CareBridge requirements](docs/CareBridge_Requirements.md). The prototype uses synthetic fixtures and a calm, light interface with teal accents. A top-bar toggle switches between the two role views; this is a demo convenience, not authenticated role enforcement. It is not the operational MVP: backend services, authentication, shared persistence, AWS infrastructure, and live AI integrations are not implemented. The broader features and AWS architecture below remain planned unless explicitly listed here.
 
-The sample includes:
+The charge nurse view includes:
 
 - An overview with an active incident timer, priority counts, patient table, urgent nurse updates, supply concern, and staffing summary.
 - Patient search by name, identifier, room, concern, or nurse; priority and verification filters; nurse filtering; and priority, name, or room sorting.
@@ -16,9 +16,18 @@ The sample includes:
 - Care team, illustrative AI review, policy-unavailable, and crisis handoff preview screens.
 - Responsive navigation and layouts, keyboard-accessible controls, and native modal dialogs.
 
-Task assignment, recommendation decisions, and policy questions are intentionally disabled previews. No clinical action, assignment, escalation, message, or incident closure occurs. The displayed charge nurse is a fictional demo persona, not an authenticated session. There is no data-entry or persistence path; do not connect real patient data to this prototype.
+On the charge nurse view, task assignment, recommendation decisions, and policy questions are intentionally disabled previews. No clinical action, assignment, escalation, message, or incident closure occurs.
 
-These screens explore FR-7, FR-11, FR-22–FR-24, FR-29–FR-33, FR-37, FR-39, and FR-43 visually; they do not satisfy the complete backend, authorization, audit, or AWS requirements.
+The nurse view (scoped to one fictional nurse) includes:
+
+- A shift overview of that nurse's patients, assigned tasks, and recent updates.
+- The patients assigned to that nurse, with the same priority and verification-freshness indicators.
+- The nurse's tasks, where status can be set to completed, delayed, or unable to complete. These status changes are held in browser session state only and are not persisted or sent anywhere.
+- A structured-plus-free-text update form with a category and an urgent flag. A submitted update is recorded in browser session state with the nurse's name and a timestamp, and the original text is shown back unchanged. There is no shared storage, no AI processing, and no delivery to the charge nurse; the two views do not share state.
+
+Both views use fictional demo personas, not authenticated sessions. The nurse update path writes only to in-memory React state that resets on reload; do not connect real patient data to this prototype.
+
+These screens explore FR-7, FR-11, FR-13–FR-16, FR-22–FR-24, FR-29–FR-33, FR-37–FR-39, and FR-43 visually; they do not satisfy the complete backend, authorization, persistence, audit, or AWS requirements. In particular, the role toggle does not implement FR-2/FR-3 role enforcement, and submitted updates are not persisted (FR-15 persistence and FR-17 correction history remain unimplemented).
 
 The project targets an 18-hour hackathon build using **synthetic patient data only**. It is a demonstration, with no claim of production readiness or regulatory certification.
 
@@ -133,18 +142,20 @@ npm run build    # Create the production frontend in dist/
 npm run preview  # Serve that build locally (normally port 4173)
 ```
 
-`npm install`, `npm run dev`, and `npm run build` were verified with Node 22.16.0 and npm 10.9.2. The production build passed; the dev server returned HTTP 200. `npm run preview` is configured but was not separately exercised. The dependency lockfile is included with the source so subsequent installs can use `npm ci`.
+`npm install`, `npm run dev`, and `npm run build` were verified with Node 22.16.0 and npm 10.9.2; the production build was re-verified with Node 22 after the nurse view was added and passed with no errors, and the dev server hot-reloaded the change without errors. `npm run preview` is configured but was not separately exercised. The dependency lockfile is included with the source so subsequent installs can use `npm ci`.
 
 ### Frontend structure and demo behavior
 
-- `src/main.jsx`: React screens, search/filter state, and read-only detail dialogs.
-- `src/data.js`: synthetic patients, nurses, updates, tasks, incident, and authored AI examples. Source updates and recommendations are separate records linked by identifiers.
+- `src/main.jsx`: the charge nurse view (`App`), the nurse view (`NurseView`), a role toggle, search/filter state, and detail dialogs. The charge nurse dialogs are read-only; the nurse view adds session-only task status and update-submission state.
+- `src/data.js`: synthetic patients, nurses, updates, tasks, incident, and authored AI examples, plus the demo nurse identity and update categories used by the nurse view. Source updates and recommendations are separate records linked by identifiers.
 - `src/styles.css`: light/teal styling and responsive layouts. DM Sans and Manrope load from Google Fonts when reachable, with local sans-serif fallbacks.
 - `index.html`: Vite entry point. No credentials or AWS settings are needed.
 
-All records are read-only, in-memory fixtures. The sample clock anchors on each page load. Incident duration and overdue/freshness calculations use timestamps, refresh every 30 seconds, and do not depend on the viewer's locale. Displayed times use `America/Los_Angeles` (Pacific time). Information is flagged as unverified if it has no verification timestamp or was last verified more than **60 minutes** ago; this is a prototype choice, not a requirement or facility policy.
+The seed fixtures are read-only. The sample clock anchors on each page load. Incident duration and overdue/freshness calculations use timestamps, refresh every 30 seconds, and do not depend on the viewer's locale. Displayed times use `America/Los_Angeles` (Pacific time). Information is flagged as unverified if it has no verification timestamp or was last verified more than **60 minutes** ago; this is a prototype choice, not a requirement or facility policy.
 
 The eight displayed patients are a subset of a fictional staffing plan. AI text is authored sample content, not generated by Bedrock. One update demonstrates an AI-failure presentation while retaining its original source text; no actual save or AI request occurs. The policy screen explicitly reports that no policy source is connected and produces no answer or citation. Handoff is a read-only view, not an export or incident closure.
+
+The nurse view adds the only interactive data paths in the prototype, and both write to in-memory React state that resets on reload: task status changes (completed, delayed, unable to complete) and submitted updates. A submitted update keeps the nurse author, patient, timestamp, and original text; it is not persisted to shared storage, processed by AI, or delivered to the charge nurse view. The role toggle swaps the rendered view only and carries no authorization.
 
 ### Verification
 

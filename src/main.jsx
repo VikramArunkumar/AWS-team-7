@@ -97,7 +97,7 @@ function App({ role, setRole }) {
   </div>;
 }
 
-const statusTone = (status) => status === 'Completed' ? 'green' : status === 'Delayed' ? 'red' : status === 'Unconfirmed' ? 'amber' : 'teal';
+const statusTone = (status) => status === 'Completed' ? 'green' : (status === 'Delayed' || status === 'Unable to complete') ? 'red' : status === 'Unconfirmed' ? 'amber' : 'teal';
 
 function NurseView({ role, setRole }) {
   const nurse = nurses.find((entry) => entry.id === currentNurseId);
@@ -133,7 +133,7 @@ function NurseView({ role, setRole }) {
   const submitUpdate = (event) => {
     event.preventDefault();
     if (!form.patient || !form.text.trim()) return;
-    const draft = { id: `UPD-NEW-${drafts.length + 1}`, patient: form.patient, nurse: nurse.id, createdAt: new Date().toISOString(), urgent: form.urgent, category: form.category, text: form.text.trim(), processing: 'Draft only · not submitted in this prototype', draft: true };
+    const draft = { id: `UPD-NEW-${drafts.length + 1}`, patient: form.patient, nurse: nurse.id, createdAt: new Date().toISOString(), urgent: form.urgent, category: form.category, text: form.text.trim(), processing: 'Recorded in this session · no AI processing in this prototype', draft: true };
     setDrafts((prev) => [draft, ...prev]);
     setForm({ patient: '', category: updateCategories[0], text: '', urgent: false });
     setModal({ type: 'submitted', item: draft });
@@ -159,6 +159,7 @@ function NurseView({ role, setRole }) {
       <div className="nurse-task-actions">
         <button className="primary-button" disabled={status === 'Completed'} onClick={() => setTask(task.id, 'Completed')}><CheckCheck size={15} /> Mark complete</button>
         <button className="secondary-button" disabled={status === 'Delayed'} onClick={() => setTask(task.id, 'Delayed')}>Report delay</button>
+        <button className="secondary-button" disabled={status === 'Unable to complete'} onClick={() => setTask(task.id, 'Unable to complete')}>Unable to complete</button>
         {status !== task.status && <button className="text-button" onClick={() => setTask(task.id, task.status)}>Undo</button>}
       </div>
     </div>;
@@ -168,7 +169,7 @@ function NurseView({ role, setRole }) {
     if (!modal) return null;
     const item = modal.item;
     if (modal.type === 'patient') return <><span className="eyebrow">SYNTHETIC PATIENT · ROOM {item.room}</span><h2>{item.name}</h2><p className="modal-lead">{item.id} · {item.age} years · In your care</p><Priority value={item.priority} /><div className="detail-block"><h3>Current coordination concern</h3><p>{item.detail}</p></div><div className="detail-block"><h3>Information freshness</h3><p>{item.verifiedAt ? `Last verified at ${formatTime(item.verifiedAt)} Pacific (${minutesSince(item.verifiedAt, now)} minutes ago).` : 'This continuity profile has not been verified.'}</p><p className="muted">This prototype flags information after 60 minutes without verification. Demo setting, not a facility policy.</p></div><h3>Your tasks for this patient</h3>{myTasks.filter((task) => task.patient === item.id).map((task) => <div className="detail-list-item" key={task.id}><ClipboardList size={17} /><span>{task.description}<small>{statusOf(task)} · Due {formatTime(task.dueAt)} Pacific</small></span></div>)}<button className="secondary-button modal-footer-button" onClick={() => { setForm((prev) => ({ ...prev, patient: item.id })); setModal(null); go('Submit update'); }}><Send size={15} /> Submit an update for {item.name.split(' ')[0]}</button></>;
-    if (modal.type === 'submitted') return <><span className="eyebrow">UPDATE DRAFTED · {item.id}</span><h2>Update saved to this session.</h2><p className="modal-lead">{patientFor(item.patient).name} · Room {patientFor(item.patient).room} · {formatTime(item.createdAt)} Pacific</p>{item.urgent && <Badge tone="red">Marked urgent</Badge>}<div className="source-quote">{item.text}</div><p className="muted">Category: {item.category}</p><div className="notice">This is a local preview. In the full app the update would be stored and sent to the charge nurse. The original text is always preserved, even if AI processing fails.</div></>;
+    if (modal.type === 'submitted') return <><span className="eyebrow">UPDATE RECORDED · {item.id}</span><h2>Your update was recorded.</h2><p className="modal-lead">{patientFor(item.patient).name} · Room {patientFor(item.patient).room} · {formatTime(item.createdAt)} Pacific · by {nurse.name}</p>{item.urgent && <Badge tone="red">Marked urgent</Badge>}<div className="source-quote">{item.text}</div><p className="muted">Category: {item.category}</p><div className="notice">Recorded in this browser session with your name and timestamp. In the full app it would be persisted before any AI processing, so the original text is never lost even if AI processing later fails. This local prototype has no shared storage or AI connection.</div></>;
     return <><span className="eyebrow">ABOUT THIS VIEW</span><h2>The nurse's view.</h2><p className="modal-lead">Submit updates and act on the tasks assigned to you.</p><p>This local visual prototype uses fictional people and synthetic data. Task status changes and submitted updates live only in this browser session. Sign-in, shared storage, and AI processing are not connected.</p></>;
   }
 
@@ -183,7 +184,7 @@ function NurseView({ role, setRole }) {
     {page === 'My shift' && <div className="overview-grid"><div className="main-column">
       <section className="panel"><div className="panel-heading"><div><h2>Tasks assigned to you <span className="count">{openTasks.length}</span></h2><p>Mark complete or report a delay. Changes are local previews.</p></div></div><div className="nurse-task-grid">{sortedTasks.slice(0, 4).map(taskCard)}{!sortedTasks.length && <div className="empty-state"><ClipboardCheck size={25} /><h3>No tasks assigned</h3><p>You're all caught up.</p></div>}</div>{sortedTasks.length > 4 && <button className="panel-bottom-link" onClick={() => go('My tasks')}>View all {myTasks.length} tasks <ArrowRight size={14} /></button>}</section>
     </div><aside className="right-column">
-      <section className="panel updates-panel"><div className="panel-heading"><h2>Your recent updates</h2><span className="subtle-icon"><Activity size={17} /></span></div><div className="update-feed">{myUpdates.slice(0, 4).map((update) => <button className="update-item" key={update.id} onClick={() => update.draft ? setModal({ type: 'submitted', item: update }) : null}><div className="update-topline"><Avatar nurse={nurse} small /><strong>{update.draft ? 'Draft' : 'Sent'}</strong><time>{minutesSince(update.createdAt, now)}m ago</time></div><div className="update-body"><div className="update-patient">Room {patientFor(update.patient).room}<span>·</span>{patientFor(update.patient).name.split(' ')[0]}</div><p>{update.text}</p><div className="update-labels">{update.urgent ? <Badge tone="red">Urgent</Badge> : <Badge>{update.category}</Badge>}</div></div></button>)}{!myUpdates.length && <div className="empty-state"><Send size={22} /><p>No updates yet.</p></div>}</div><button className="panel-bottom-link" onClick={() => go('Submit update')}>Submit a new update <ArrowRight size={14} /></button></section>
+      <section className="panel updates-panel"><div className="panel-heading"><h2>Your recent updates</h2><span className="subtle-icon"><Activity size={17} /></span></div><div className="update-feed">{myUpdates.slice(0, 4).map((update) => <button className="update-item" key={update.id} onClick={() => update.draft ? setModal({ type: 'submitted', item: update }) : null}><div className="update-topline"><Avatar nurse={nurse} small /><strong>{update.draft ? 'Recorded this session' : 'Sent'}</strong><time>{minutesSince(update.createdAt, now)}m ago</time></div><div className="update-body"><div className="update-patient">Room {patientFor(update.patient).room}<span>·</span>{patientFor(update.patient).name.split(' ')[0]}</div><p>{update.text}</p><div className="update-labels">{update.urgent ? <Badge tone="red">Urgent</Badge> : <Badge>{update.category}</Badge>}</div></div></button>)}{!myUpdates.length && <div className="empty-state"><Send size={22} /><p>No updates yet.</p></div>}</div><button className="panel-bottom-link" onClick={() => go('Submit update')}>Submit a new update <ArrowRight size={14} /></button></section>
     </aside></div>}
 
     {page === 'My patients' && <section className="panel patients-panel"><div className="panel-heading"><div><h2>Your patients <span className="count">{myPatients.length}</span></h2><p>Patients assigned to you during this incident.</p></div></div><div className="table-scroll"><table><thead><tr><th>Patient</th><th>Priority</th><th>Latest concern</th><th><span className="sr-only">Details</span></th></tr></thead><tbody>{myPatients.map((patient) => <tr key={patient.id}>
@@ -203,7 +204,7 @@ function NurseView({ role, setRole }) {
         <label className="checkbox-row"><input type="checkbox" checked={form.urgent} onChange={(event) => setForm((prev) => ({ ...prev, urgent: event.target.checked }))} /> Mark this update as urgent</label>
         <div className="form-actions"><button type="submit" className="primary-button" disabled={!form.patient || !form.text.trim()}><Send size={15} /> Submit update</button><span className="muted small-text"><ShieldCheck size={12} /> Draft saved to this session only</span></div>
       </form>
-      <div className="notice">The original update is always preserved. In the full app it would be sent to the charge nurse and processed by Amazon Bedrock; here it stays in your browser.</div>
+      <div className="notice">Your update is recorded with your name and a timestamp. In the full app it would be persisted before any Amazon Bedrock processing, so the original is never lost if AI processing fails. This local prototype keeps it in your browser only and does not connect to shared storage or AI.</div>
     </section>}
   </>;
 
