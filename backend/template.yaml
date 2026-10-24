@@ -316,6 +316,22 @@ Resources:
             Path: /incidents/{incidentId}/dashboard
             Method: get
 
+  WorkspaceFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers/workspace.handler
+      CodeUri: src/
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref CareBridgeTable
+      Events:
+        GetWorkspace:
+          Type: Api
+          Properties:
+            RestApiId: !Ref CareBridgeApi
+            Path: /incidents/{incidentId}/workspace
+            Method: get
+
   UpdatesFunction:
     Type: AWS::Serverless::Function
     Properties:

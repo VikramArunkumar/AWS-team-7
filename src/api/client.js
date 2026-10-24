@@ -78,9 +78,32 @@ export function createApiClient({ baseUrl, getAccessToken, fetchImpl = globalThi
     return data;
   }
 
+  const seg = (value) => encodeURIComponent(String(value));
+  const incidentPath = (incidentId) => `/incidents/${seg(incidentId)}`;
+
   return {
     request,
     /** Verify backend authentication and get the effective identity. */
     getMe: () => request('/me'),
+    /** Nurse only: the signed-in nurse's patients, tasks, and own updates. */
+    getWorkspace: (incidentId) => request(`${incidentPath(incidentId)}/workspace`),
+    /**
+     * Save a nurse update. Reuse the same clientRequestId when retrying one
+     * submission so the backend returns the saved update instead of a duplicate.
+     */
+    createUpdate: (incidentId, { patient, category, text, urgent, clientRequestId }) => request(
+      `${incidentPath(incidentId)}/updates`,
+      { method: 'POST', body: { patient, category, text, urgent, clientRequestId } },
+    ),
+    /** Correct the caller's own update; the backend keeps the prior version. */
+    correctUpdate: (incidentId, updateId, { text, category, urgent }) => request(
+      `${incidentPath(incidentId)}/updates/${seg(updateId)}`,
+      { method: 'PATCH', body: { text, category, urgent } },
+    ),
+    /** Report status on a task assigned to the caller. */
+    setTaskStatus: (incidentId, taskId, status) => request(
+      `${incidentPath(incidentId)}/tasks/${seg(taskId)}`,
+      { method: 'PATCH', body: { status } },
+    ),
   };
 }

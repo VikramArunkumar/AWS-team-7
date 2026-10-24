@@ -23,12 +23,18 @@ Implemented and verified locally (mocked claims, no live AWS):
 - Role and ownership enforcement in every handler, human approval enforced in
   the backend action path (NFR-24), and the Cognito identity recorded in audit
   events (FR-41).
-- 94 backend tests, an offline template authorization audit, `cfn-lint`, and
+- A nurse-scoped workspace read (`GET /incidents/{id}/workspace`) that returns
+  only the caller's patients, assigned tasks, and own updates.
+- Retry-safe update saves: a `clientRequestId` makes a repeated submission
+  return the stored update instead of creating a duplicate.
+- 111 backend tests, an offline template authorization audit, `cfn-lint`, and
   `sam validate --lint`.
 
-Not yet validated: nothing has been deployed. The Cognito authorizer, hosted
-login, CORS on gateway errors, token revocation, and the sign-out redirect still
-need the deployed smoke test below. Bedrock remains a labeled stub.
+Deployed once to a workshop account, where hosted login and `GET /me` worked
+for nurse and charge nurse accounts. The rest of the deployed smoke test below
+(CORS on gateway errors, token revocation, wrong-client tokens) has not been
+run, and the workspace route was added after that deploy, so redeploy before
+using it. Bedrock remains a labeled stub.
 
 ## How authentication works
 
@@ -100,11 +106,12 @@ Every route requires a provisioned account. `—` means 403.
 | --- | --- | --- | --- | --- |
 | GET | `/me` | Own identity | Own identity | FR-1, FR-3 |
 | GET | `/incidents/{id}` | Status and duration | Status and duration | FR-7 |
+| GET | `/incidents/{id}/workspace` | Own patients, tasks, updates | — | FR-13, FR-38, FR-39, NFR-8 |
 | GET | `/incidents/{id}/dashboard` | — | Full snapshot | FR-30, NFR-8 |
 | POST | `/incidents` | — | Activate | FR-5 |
 | POST | `/incidents/{id}/deactivate` | — | Close | FR-8 |
-| POST | `/incidents/{id}/updates` | Author is self | Author is self | FR-13–FR-16 |
-| PATCH | `/incidents/{id}/updates/{id}` | Own updates only | Own updates only | FR-17 |
+| POST | `/incidents/{id}/updates` | Author is self; patient must exist | Author is self; patient must exist | FR-13–FR-16 |
+| PATCH | `/incidents/{id}/updates/{id}` | Own updates only (text, category, urgent) | Own updates only | FR-17 |
 | POST | `/incidents/{id}/updates/{id}/process` | — | Run AI stub | FR-18–FR-23 |
 | POST | `/incidents/{id}/recommendations/{id}/approve` | — | Approve or modify, creates task | FR-33, NFR-24 |
 | POST | `/incidents/{id}/recommendations/{id}/reject` | — | Reject, applies nothing | NFR-25 |
@@ -112,8 +119,20 @@ Every route requires a provisioned account. `—` means 403.
 | PATCH | `/incidents/{id}/tasks/{id}` | Status on own assigned task | Status, assignee, priority, due time | FR-34, FR-38 |
 
 The dashboard contains every patient, task, and AI recommendation for the
-incident, so nurses do not receive it just because they signed in. A
-nurse-scoped read (assigned tasks, own updates) is a remaining gap. Nurse
+incident, so nurses do not receive it just because they signed in. Nurses read
+the workspace instead: patients assigned to them (plus any patient one of their
+tasks references, flagged `assignedToMe: false`), tasks assigned to them with
+`overdue` / `unconfirmed` flags, and updates they wrote. It never includes other
+nurses' updates or tasks, AI recommendations, audit events, or table keys, and
+it has no parameter for reading another nurse's data. Both views compute
+indicators with `src/lib/indicators.js`.
+
+`POST .../updates` accepts an optional `clientRequestId` (8–64 letters, digits,
+or hyphens). The update id is derived from the author and that value, so a
+retried submission returns the stored update with `200` instead of creating a
+second one; the same value from another nurse is a separate update. Corrections
+push the prior text, category, and urgent flag into `editHistory` with the time
+and author of the change. Nurse
 ownership checks are repeated inside the DynamoDB write condition, so a
 concurrent reassignment cannot slip through.
 
@@ -163,11 +182,12 @@ backend/
   src/                          # Lambda code (CodeUri), runtime deps in src/package.json
     lib/auth.js                 # verified-claims identity, role policy, mapping lookup
     lib/http.js                 # responses, CORS headers, errors
+    lib/indicators.js           # overdue, unverified, and incident-duration rules
     lib/keys.js lib/ddb.js lib/audit.js lib/ids.js lib/bedrock.js
-    handlers/me.js incidents.js dashboard.js updates.js recommendations.js tasks.js
+    handlers/me.js incidents.js dashboard.js workspace.js updates.js recommendations.js tasks.js
   scripts/
     provision-identity.js       # bind or remove a Cognito account mapping (admin)
-    seed.js                     # load ../../src/data.js fixtures into DynamoDB Local
+    seed.js                     # load ../../src/data.js fixtures (DynamoDB Local, or --aws)
     create-local-table.js
     check-template-auth.py      # offline audit of per-method authorization
     lib/seed-items.js lib/provisioning.js
@@ -179,7 +199,7 @@ backend/
 ```bash
 cd backend
 npm install && npm install --prefix src
-npm test                                   # 94 tests, in-memory DynamoDB double
+npm test                                   # 111 tests, in-memory DynamoDB double
 
 # Template checks (SAM CLI / cfn-lint, or run them through uv as shown)
 uvx cfn-lint template.yaml
@@ -362,7 +382,18 @@ aws cognito-idp admin-disable-user --user-pool-id "$POOL" --username nurse.two@e
 ```
 
 The deployed table starts empty. The provisioning script creates any missing
-profile; `npm run seed` targets DynamoDB Local only.
+profile. To load the demo incident `INC-0042` into the deployed table, run the
+seed with the explicit `--aws` flag and your admin credentials:
+
+```bash
+unset DYNAMODB_ENDPOINT
+AWS_REGION=<region> TABLE_NAME=CareBridge-dev node scripts/seed.js --aws
+```
+
+Run it once on a fresh table. Rerunning it rewrites the demo incident's items,
+which resets patients, seeded tasks, and seeded updates and discards later
+corrections to them; updates and tasks created in the app keep their own items.
+Existing user profiles and identity bindings are never changed.
 
 ### Change callback and sign-out URLs for hosting
 
@@ -455,6 +486,14 @@ curl -si "$API/incidents/$INC/dashboard" -H "Authorization: Bearer $NURSE_TOKEN"
 curl -si -X POST "$API/incidents/$INC/deactivate" -H "Authorization: Bearer $CHARGE_TOKEN" | head -1  # 200
 ```
 
+**Nurse workspace.** With the demo incident seeded (`--aws`) and the nurse bound
+to `n1`, the workspace contains only `n1` records and the charge nurse is refused:
+
+```bash
+curl -s "$API/incidents/INC-0042/workspace" -H "Authorization: Bearer $NURSE_TOKEN"            # n1 patients/tasks/updates only
+curl -si "$API/incidents/INC-0042/workspace" -H "Authorization: Bearer $CHARGE_TOKEN" | head -1  # 403
+```
+
 **ID token instead of access token.** In Session Storage, copy `id_token` from
 the `oidc.user:…` entry. Expect `401` because the API requires the access-token
 scope.
@@ -503,9 +542,13 @@ returns `403 not_provisioned`.
 ## Remaining gaps
 
 - No live AWS validation yet; run the smoke test above after the first deploy.
-- Nurse-scoped reads (assigned tasks, own updates, patient profiles) are not
-  implemented. Nurses can reach only `/me`, incident status, update
-  submission/correction, and their own task status.
+- The charge nurse dashboard UI still renders fixtures, so updates and task
+  changes saved from the nurse view appear only through `GET .../dashboard`,
+  not on screen.
+- Nurses read one configured incident (`VITE_INCIDENT_ID`); there is no
+  endpoint for discovering the active incident.
+- Task status changes are not de-duplicated by request id, but setting the same
+  status twice is harmless; each change writes an audit event.
 - The system administrator persona has no in-app role; administration happens
   in the Cognito console and `provision-identity.js`.
 - Revoked or signed-out access tokens remain valid at API Gateway for up to 30

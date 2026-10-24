@@ -6,15 +6,16 @@ CareBridge assumes electricity and basic internet connectivity remain available.
 
 ## Project status
 
-This repository contains a React/Vite frontend, a SAM backend in [`backend/`](backend/README.md), and the [CareBridge requirements](docs/CareBridge_Requirements.md). It is not the operational MVP. Nothing has been deployed or validated against live AWS yet.
+This repository contains a React/Vite frontend, a SAM backend in [`backend/`](backend/README.md), and the [CareBridge requirements](docs/CareBridge_Requirements.md). It is not the operational MVP. The backend has been deployed once to a workshop AWS account, where Cognito sign-in and `GET /me` worked for nurse and charge nurse accounts; the full [deployed smoke test](backend/README.md#deployed-smoke-test) has not been run.
 
 Implemented:
 
 - **Sign-in, sign-out, and role-based access (FR-1–FR-4, NFR-8).** Amazon Cognito hosted login with the authorization code flow and PKCE, administrator-created accounts, and `nurse` / `charge_nurse` groups. The frontend calls `GET /me` to confirm backend authentication and picks screens from the role the API reports: `charge_nurse` gets the charge nurse dashboard and `nurse` gets the nurse view. The API's Cognito authorizer protects every route, and Lambda enforces roles and ownership from verified claims only. Details are in the [backend README](backend/README.md#how-authentication-works).
 - **Backend scaffold.** Single-table DynamoDB persistence, persist-first nurse updates, backend-enforced recommendation approval (NFR-24), task ownership rules, and an audit log. Bedrock is a labeled stub.
-- **Charge nurse and nurse visual prototypes**, each shown only to its role. They still render synthetic fixtures from `src/data.js`, not API data.
+- **Nurse workspace connected to the API (FR-13–FR-17, FR-38, FR-39).** The nurse view reads `GET /incidents/{id}/workspace`, which returns only the signed-in nurse's patients, assigned tasks, and own updates. Updates, corrections, and task status changes are saved through the API.
+- **Charge nurse visual prototype.** Still renders synthetic fixtures from `src/data.js`, not API data, so it does not yet show updates or task changes nurses save.
 
-Main remaining auth gaps: no live AWS validation yet, no nurse-scoped data reads, no in-app administrator role, and a window of up to 30 minutes in which an access token issued before sign-out still works. The full list is in the [backend README](backend/README.md#remaining-gaps). Because there is no administrator role, the administrator console in `src/admin/` is built but not reachable. The broader features and AWS architecture below remain planned unless listed here.
+Main remaining auth gaps: the deployed smoke test has not been run, no in-app administrator role, and a window of up to 30 minutes in which an access token issued before sign-out still works. The full list is in the [backend README](backend/README.md#remaining-gaps). Because there is no administrator role, the administrator console in `src/admin/` is built but not reachable. The broader features and AWS architecture below remain planned unless listed here.
 
 The charge nurse view includes:
 
@@ -26,16 +27,18 @@ The charge nurse view includes:
 
 On the charge nurse view, task assignment and recommendation decisions are disabled previews. The policy assistant is an interactive demo that answers from synthetic policies (see below). No clinical action, assignment, escalation, message, or incident closure occurs from the frontend. The signed-in name comes from the API; the dashboard records do not.
 
-The nurse view (scoped to the signed-in nurse) includes:
+The nurse view (`src/NurseView.jsx`) reads and writes through the API and shows only the signed-in nurse's data:
 
 - A shift overview of that nurse's patients, assigned tasks, and recent updates, led by an attention banner when the nurse has overdue tasks or high-priority patients.
-- The patients assigned to that nurse, with the same priority and verification-freshness indicators.
-- A patient detail showing the continuity profile, that patient's recent updates (seed and session), and the nurse's open tasks for the patient.
-- The nurse's tasks, where status can be set to completed, delayed, or unable to complete, with inline confirmation and undo. Status changes are held in browser session state only.
-- A structured-plus-free-text update form with a category and an urgent flag; a submitted update is recorded in browser session state with the nurse's name and a timestamp, preserving the original text.
-- Responsive layouts, keyboard-accessible controls, and a screen-reader status announcement when a task status changes.
+- The patients assigned to that nurse, with priority and verification-freshness indicators. A patient referenced by one of the nurse's tasks is shown too, labeled as linked to a task.
+- A patient detail showing the continuity profile, the nurse's updates for that patient, and the nurse's tasks for the patient.
+- The nurse's tasks: acknowledge an unconfirmed task, mark it complete, report a delay, report it as unable to complete, or move it back to in progress. Each change is saved to the API and shows "Saving…", a saved confirmation, or a "Not saved" error on the card.
+- A structured-plus-free-text update form with a category and an urgent flag. A save shows the stored update; a failure says plainly that the update was **not** saved and keeps the text in the form. Each saved update shows its AI processing state ("Saved · AI summary not run yet", "Saved · AI processing failed; your original update is kept"), so an AI failure is never confused with a failed save.
+- Corrections to the nurse's own updates (text, category, urgent flag). The backend keeps every earlier version in `editHistory`, and the view shows that history.
+- A refresh button, a silent refresh every 60 seconds, and a notice when a refresh fails while the last loaded data stays on screen.
+- Responsive layouts, keyboard-accessible controls, and a screen-reader status announcement for saves.
 
-The nurse view shows the fixture shift data whose nurse id matches the signed-in account's CareBridge user id (`n1` to `n6`, the ids the backend seed assigns). A nurse account with no matching fixture sees the minimal signed-in screen (`src/NurseHome.jsx`) instead of another nurse's data. Nurse updates and task-status changes stay in in-memory React state that resets on reload; they are not sent to the API. Do not connect real patient data to this prototype.
+Every provisioned nurse gets this view; a nurse with no assignments sees empty states. The incident comes from `VITE_INCIDENT_ID` (default `INC-0042`, the seeded demo incident). If that incident does not exist, the view says so. Synthetic data only; do not connect real patient data.
 
 The administrator console (system overview, user management, synthetic patient-data management, facility policy documents, and incident configuration) is built in `src/admin/` but not routed, because the backend has no administrator role. Its mutating controls are preview-only.
 
@@ -183,7 +186,7 @@ Restart `npm run dev` after changing `.env.local`.
 
 - **Library.** [`react-oidc-context`](https://github.com/authts/react-oidc-context) 3.3.1 over `oidc-client-ts` 3.5.0 (pinned). The library handles the redirect, PKCE (S256), and `state` validation. The app also sends a random `nonce`, which the library checks against the ID token. The client has no secret.
 - **Callback.** Cognito returns to `/auth/callback`. After the code exchange, the app replaces the address with `/`, so the authorization code and state don't stay in the URL or history. Failed or replayed callbacks show "Sign-in didn't complete" without echoing error details.
-- **Verification.** After sign-in the app calls `GET /me`. It shows the charge nurse dashboard only when the API reports `charge_nurse`, and the nurse view for `nurse` (or the minimal signed-in screen when the account has no fixture shift data). An unmapped account sees "Your account isn't set up yet." The UI choice is convenience; the API enforces every permission.
+- **Verification.** After sign-in the app calls `GET /me`. It shows the charge nurse dashboard only when the API reports `charge_nurse`, and the API-backed nurse view for `nurse`. An unmapped account sees "Your account isn't set up yet." The UI choice is convenience; the API enforces every permission.
 - **API calls.** `src/api/client.js` sends `Authorization: Bearer <access token>`, never `X-User-Id` / `X-User-Role`, never cookies, and keeps tokens out of URLs, errors, and logs.
 - **Token storage.** Access, ID, and refresh tokens, plus in-flight sign-in state (state, nonce, PKCE verifier), are stored in this tab's **sessionStorage** under `oidc.` keys. They survive a page reload, are not shared with other tabs, and are cleared when the tab closes. Any script running on the page could read them, so avoid third-party scripts and add a Content Security Policy when hosting.
 - **Expiry.** Access tokens last 30 minutes. About a minute before expiry the library renews silently with the refresh token (12-hour lifetime). If renewal fails, or the API returns 401, the app clears the session and shows "Your session ended."
@@ -196,24 +199,24 @@ Deploy a stack whose `FrontendOrigin`, `CallbackUrl`, and `SignOutUrl` use the h
 ### Frontend structure and demo behavior
 
 - `src/entry.jsx`: auth provider setup.
-- `src/RoleView.jsx`: role routing after sign-in. `charge_nurse` gets the charge nurse dashboard; `nurse` gets the nurse view, or the minimal signed-in screen when no fixture nurse matches the account.
-- `src/main.jsx`: the charge nurse dashboard (`App`) and the nurse view (`NurseView`), with search/filter state and detail dialogs. Charge dialogs are read-only; the nurse view adds session-only update and task-status actions.
+- `src/RoleView.jsx`: role routing after sign-in. `charge_nurse` gets the charge nurse dashboard; `nurse` gets the nurse view.
+- `src/main.jsx`: the charge nurse dashboard (`App`), with search/filter state and read-only detail dialogs, plus the shared `Badge` and `Priority` components.
+- `src/NurseView.jsx`: the API-backed nurse workspace. `src/nurse/workspace.js` holds its pure helpers (indicators, sorting, save messages), unit-tested in `tests/nurse-workspace.test.js`.
 - `src/auth/`: sign-in configuration and validation (`config.js`), the sign-in, access-check, and error screens (`AuthGate.jsx`), and sign-out helpers (`session.js`).
-- `src/api/client.js`: the small API client that attaches the access token.
-- `src/NurseHome.jsx`: the minimal signed-in nurse screen, shown when a nurse account has no matching fixture shift data.
+- `src/api/client.js`: the small API client that attaches the access token, with calls for `/me`, the nurse workspace, saving and correcting updates, and task status.
 - `src/PolicyAssistant.jsx`, `src/policies.js`: the policy assistant and its synthetic policy fixtures.
 - `src/admin/AdminApp.jsx`, `src/admin/AdminDashboard.jsx`: the administrator console, not routed until the backend has an administrator role.
 - `src/data.js`: synthetic patients, nurses, updates, tasks, incident, and authored AI examples, plus the update categories used by the nurse view. Source updates and recommendations are separate records linked by identifiers. The backend seed script and backend tests read these fixtures too.
 - `src/styles.css`: light/teal styling and responsive layouts. DM Sans and Manrope load from Google Fonts when reachable, with local sans-serif fallbacks.
 - `index.html`: Vite entry point; loads `src/entry.jsx`.
 - `vite.config.js`: serves the dev and preview servers on `localhost`.
-- `.env.example`: placeholder sign-in and API settings.
+- `.env.example`: placeholder sign-in and API settings, plus the optional `VITE_INCIDENT_ID`.
 
-The seed fixtures are read-only. The sample clock anchors on each page load. Incident duration and overdue/freshness calculations use timestamps, refresh every 30 seconds, and do not depend on the viewer's locale. Displayed times use `America/Los_Angeles` (Pacific time). Information is flagged as unverified if it has no verification timestamp or was last verified more than **60 minutes** ago; this is a prototype choice, not a requirement or facility policy.
+On the charge nurse dashboard the seed fixtures are read-only and the sample clock anchors on each page load. Incident duration and overdue/freshness calculations use timestamps, refresh every 30 seconds, and do not depend on the viewer's locale. Displayed times use `America/Los_Angeles` (Pacific time). Information is flagged as unverified if it has no verification timestamp or was last verified more than **60 minutes** ago; this is a prototype choice, not a requirement or facility policy.
 
 The eight displayed patients are a subset of a fictional staffing plan. AI text is authored sample content, not generated by Bedrock. One update demonstrates an AI-failure presentation while retaining its original source text; no actual save or AI request occurs. The policy assistant answers questions by matching keywords against synthetic, in-browser policy fixtures and cites the matched fixture document; unmatched questions produce an explicit no-evidence response. It performs no AI reasoning and no retrieval, and does not use a Bedrock Knowledge Base or any backend. Handoff is a read-only view, not an export or incident closure.
 
-The nurse view adds the only interactive data paths in the prototype, and both write to in-memory React state that resets on reload: task status changes (completed, delayed, unable to complete) and submitted updates. Changed task cards show an inline confirmation and an undo, and status changes are announced through an `aria-live` region. The attention banner on the shift overview is derived from the same session state. A submitted update keeps the nurse author, patient, timestamp, and original text, and corrections retain every prior version; none of it is persisted to shared storage, processed by AI, or delivered to the charge nurse view.
+The nurse view uses the same 60-minute freshness threshold, returned by the API in `meta.verificationFreshnessMinutes`, and recalculates overdue and unverified indicators every 30 seconds from the stored timestamps.
 
 ### Policy assistant: demo vs. intended design
 
@@ -240,6 +243,8 @@ Verified locally on October 23, 2026 (Node 22.16.0, npm 10.9.2), without deployi
 Not verified: anything against live Cognito or API Gateway (hosted login pages, the real authorizer, CORS on deployed gateway errors, refresh-token renewal and revocation at Cognito). Run the [deployed smoke test](backend/README.md#deployed-smoke-test) after the first deploy. Mocked-claim tests show how Lambda treats verified claims; they are not evidence that the deployed authorizer works, and `sam local` does not run Cognito authorizers either.
 
 After merging `combine-frontend` into this branch (October 23, 2026; Node 25.8.2, npm 11.11.1), `npm test` (17 pass), `npm run build`, and `cd backend && npm test` (94 pass, including the tests that read `src/data.js`) all pass. A temporary headless-Chrome check rendered `RoleView` with mocked `/me` results: `charge_nurse` showed the charge nurse dashboard, a nurse with user id `n1` saw only that nurse's shift data, an unlinked nurse id saw the minimal signed-in screen, and each screen's sign-out control called the sign-out handler. Without `.env.local`, the dev server shows the "Sign-in isn't configured" screen. The real Cognito sign-in and `GET /me` call were not exercised.
+
+After connecting the nurse view to the API (October 24, 2026): `npm test` (29 pass), `npm run build`, `cd backend && npm test` (111 pass with mocked claims), `sam validate`, and `scripts/check-template-auth.py` (the new workspace route requires `CognitoAuthorizer` with `carebridge/access`) all pass. A temporary headless-Chrome harness rendered `NurseView` against a fake API client: the shift, task, patient, and update screens rendered; saving a task status, submitting an update, and correcting an update showed the saved results and correction history; a failed save kept the text and said it was not saved; a failed task save showed "Not saved"; a missing incident showed "No active incident found"; and the page had no horizontal overflow at 500 pixels (headless Chrome's minimum) and 820 pixels. The new backend route has not been deployed or exercised against live AWS.
 
 See [frontend verification notes](docs/Frontend_Verification.md) for the earlier visual prototype checks. Persistence through the UI, retries, AWS integrations, and operational performance targets remain unverified.
 

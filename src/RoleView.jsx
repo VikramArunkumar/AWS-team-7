@@ -1,7 +1,6 @@
 import React from 'react';
-import { App as ChargeNurseDashboard, NurseView } from './main.jsx';
-import { NurseHome } from './NurseHome.jsx';
-import { nurses } from './data.js';
+import { App as ChargeNurseDashboard } from './main.jsx';
+import { NurseView } from './NurseView.jsx';
 
 // Chooses the screen for a signed-in user. `view` comes from AuthGate, which
 // derives it from the role GET /me reports ('charge' or 'nurse'). The screen
@@ -9,17 +8,13 @@ import { nurses } from './data.js';
 // administrator route yet because the backend recognizes only nurse and
 // charge_nurse.
 
-// The nurse view renders fixture shift data. Show it only when the account's
-// CareBridge user id matches a fixture nurse (n1-n6 in the backend seed);
-// otherwise show the minimal signed-in screen rather than another nurse's data.
-export const hasDemoShift = (me) => nurses.some((nurse) => nurse.id === me?.userId);
-
-export function RoleView({ me, view, signOut }) {
+// The nurse view reads the signed-in nurse's own workspace from the API, so
+// every provisioned nurse gets it; one with no assignments sees empty states.
+// The charge nurse dashboard still renders fixtures from src/data.js.
+export function RoleView({ me, view, signOut, api, incidentId, onSessionExpired }) {
   if (view === 'charge') return <ChargeNurseDashboard me={me} onSignOut={signOut} />;
   if (view === 'nurse') {
-    return hasDemoShift(me)
-      ? <NurseView me={me} onSignOut={signOut} />
-      : <NurseHome me={me} onSignOut={signOut} />;
+    return <NurseView me={me} onSignOut={signOut} api={api} incidentId={incidentId} onSessionExpired={onSessionExpired} />;
   }
   return null;
 }
