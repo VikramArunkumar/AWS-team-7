@@ -23,11 +23,12 @@ The nurse view (scoped to one fictional nurse) includes:
 - A shift overview of that nurse's patients, assigned tasks, and recent updates.
 - The patients assigned to that nurse, with the same priority and verification-freshness indicators.
 - The nurse's tasks, where status can be set to completed, delayed, or unable to complete. These status changes are held in browser session state only and are not persisted or sent anywhere.
-- A structured-plus-free-text update form with a category and an urgent flag. A submitted update is recorded in browser session state with the nurse's name and a timestamp, and the original text is shown back unchanged. There is no shared storage, no AI processing, and no delivery to the charge nurse; the two views do not share state.
+- A patient continuity profile (synthetic allergies, critical medications, relevant conditions, care priorities, risk indicators, and assigned nurse) alongside the coordination concern and verification freshness.
+- A structured-plus-free-text update form with a category and an urgent flag. A submitted update is recorded in browser session state with the nurse's name and a timestamp, and the original text is shown back unchanged. The nurse can correct their own session update; each prior version is kept as correction history and the original is never overwritten. There is no shared storage, no AI processing, and no delivery to the charge nurse; the two views do not share state.
 
 Both views use fictional demo personas, not authenticated sessions. The nurse update path writes only to in-memory React state that resets on reload; do not connect real patient data to this prototype.
 
-These screens explore FR-7, FR-11, FR-13–FR-16, FR-22–FR-24, FR-29–FR-33, FR-37–FR-39, and FR-43 visually; they do not satisfy the complete backend, authorization, persistence, audit, or AWS requirements. In particular, the role toggle does not implement FR-2/FR-3 role enforcement, and submitted updates are not persisted (FR-15 persistence and FR-17 correction history remain unimplemented).
+These screens explore FR-7, FR-9–FR-11, FR-13–FR-17, FR-22–FR-24, FR-29–FR-33, FR-37–FR-39, and FR-43 visually; they do not satisfy the complete backend, authorization, persistence, audit, or AWS requirements. The continuity-profile and correction-history behavior is demonstrated in session memory only. In particular, the role toggle does not implement FR-2/FR-3 role enforcement (hiding a view is not authorization), and updates and corrections are not persisted to shared storage (the FR-15 persistence path, the durable FR-17 audit history, and FR-12 patient-change audit remain unimplemented in a backend).
 
 The project targets an 18-hour hackathon build using **synthetic patient data only**. It is a demonstration, with no claim of production readiness or regulatory certification.
 

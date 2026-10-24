@@ -110,6 +110,8 @@ function NurseView({ role, setRole }) {
   // Draft nurse updates added this session (preview only, not stored anywhere).
   const [drafts, setDrafts] = useState([]);
   const [form, setForm] = useState({ patient: '', category: updateCategories[0], text: '', urgent: false });
+  // When set, the form edits an existing session draft instead of creating a new one.
+  const [editingId, setEditingId] = useState(null);
   const dialog = useRef(null);
   useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(timer); }, []);
   useEffect(() => {
@@ -133,10 +135,31 @@ function NurseView({ role, setRole }) {
   const submitUpdate = (event) => {
     event.preventDefault();
     if (!form.patient || !form.text.trim()) return;
-    const draft = { id: `UPD-NEW-${drafts.length + 1}`, patient: form.patient, nurse: nurse.id, createdAt: new Date().toISOString(), urgent: form.urgent, category: form.category, text: form.text.trim(), processing: 'Recorded in this session · no AI processing in this prototype', draft: true };
+    if (editingId) {
+      // Correct an existing update: keep the original and prior versions as history (FR-17 / NFR-14).
+      let edited;
+      setDrafts((prev) => prev.map((draft) => {
+        if (draft.id !== editingId) return draft;
+        const priorVersion = { text: draft.text, category: draft.category, urgent: draft.urgent, editedAt: new Date().toISOString() };
+        edited = { ...draft, patient: form.patient, category: form.category, text: form.text.trim(), urgent: form.urgent, correctedAt: new Date().toISOString(), history: [...(draft.history ?? []), priorVersion] };
+        return edited;
+      }));
+      setEditingId(null);
+      setForm({ patient: '', category: updateCategories[0], text: '', urgent: false });
+      setModal({ type: 'submitted', item: edited });
+      return;
+    }
+    const draft = { id: `UPD-NEW-${drafts.length + 1}`, patient: form.patient, nurse: nurse.id, createdAt: new Date().toISOString(), urgent: form.urgent, category: form.category, text: form.text.trim(), processing: 'Recorded in this session · no AI processing in this prototype', draft: true, history: [] };
     setDrafts((prev) => [draft, ...prev]);
     setForm({ patient: '', category: updateCategories[0], text: '', urgent: false });
     setModal({ type: 'submitted', item: draft });
+  };
+
+  const editUpdate = (update) => {
+    setEditingId(update.id);
+    setForm({ patient: update.patient, category: update.category, text: update.text, urgent: update.urgent });
+    setModal(null);
+    go('Submit update');
   };
 
   const navigation = [
@@ -168,8 +191,8 @@ function NurseView({ role, setRole }) {
   function renderModal() {
     if (!modal) return null;
     const item = modal.item;
-    if (modal.type === 'patient') return <><span className="eyebrow">SYNTHETIC PATIENT · ROOM {item.room}</span><h2>{item.name}</h2><p className="modal-lead">{item.id} · {item.age} years · In your care</p><Priority value={item.priority} /><div className="detail-block"><h3>Current coordination concern</h3><p>{item.detail}</p></div><div className="detail-block"><h3>Information freshness</h3><p>{item.verifiedAt ? `Last verified at ${formatTime(item.verifiedAt)} Pacific (${minutesSince(item.verifiedAt, now)} minutes ago).` : 'This continuity profile has not been verified.'}</p><p className="muted">This prototype flags information after 60 minutes without verification. Demo setting, not a facility policy.</p></div><h3>Your tasks for this patient</h3>{myTasks.filter((task) => task.patient === item.id).map((task) => <div className="detail-list-item" key={task.id}><ClipboardList size={17} /><span>{task.description}<small>{statusOf(task)} · Due {formatTime(task.dueAt)} Pacific</small></span></div>)}<button className="secondary-button modal-footer-button" onClick={() => { setForm((prev) => ({ ...prev, patient: item.id })); setModal(null); go('Submit update'); }}><Send size={15} /> Submit an update for {item.name.split(' ')[0]}</button></>;
-    if (modal.type === 'submitted') return <><span className="eyebrow">UPDATE RECORDED · {item.id}</span><h2>Your update was recorded.</h2><p className="modal-lead">{patientFor(item.patient).name} · Room {patientFor(item.patient).room} · {formatTime(item.createdAt)} Pacific · by {nurse.name}</p>{item.urgent && <Badge tone="red">Marked urgent</Badge>}<div className="source-quote">{item.text}</div><p className="muted">Category: {item.category}</p><div className="notice">Recorded in this browser session with your name and timestamp. In the full app it would be persisted before any AI processing, so the original text is never lost even if AI processing later fails. This local prototype has no shared storage or AI connection.</div></>;
+    if (modal.type === 'patient') return <><span className="eyebrow">SYNTHETIC PATIENT · ROOM {item.room}</span><h2>{item.name}</h2><p className="modal-lead">{item.id} · {item.age} years · In your care</p><Priority value={item.priority} /><div className="detail-block"><h3>Continuity profile</h3><dl className="detail-grid"><dt>Allergies</dt><dd>{item.allergies.join(', ')}</dd><dt>Critical medications</dt><dd>{item.medications.join(', ')}</dd><dt>Relevant conditions</dt><dd>{item.conditions.join(', ')}</dd><dt>Care priorities</dt><dd>{item.carePriorities}</dd><dt>Risk indicators</dt><dd>{item.riskIndicators.length ? item.riskIndicators.join(', ') : 'None recorded'}</dd><dt>Assigned nurse</dt><dd>{nurse.name}</dd></dl><p className="muted">Synthetic continuity fields for demonstration. Verify against source records before acting.</p></div><div className="detail-block"><h3>Current coordination concern</h3><p>{item.detail}</p></div><div className="detail-block"><h3>Information freshness</h3><p>{item.verifiedAt ? `Last verified at ${formatTime(item.verifiedAt)} Pacific (${minutesSince(item.verifiedAt, now)} minutes ago).` : 'This continuity profile has not been verified.'}</p><p className="muted">This prototype flags information after 60 minutes without verification. Demo setting, not a facility policy.</p></div><h3>Your tasks for this patient</h3>{myTasks.filter((task) => task.patient === item.id).map((task) => <div className="detail-list-item" key={task.id}><ClipboardList size={17} /><span>{task.description}<small>{statusOf(task)} · Due {formatTime(task.dueAt)} Pacific</small></span></div>)}<button className="secondary-button modal-footer-button" onClick={() => { setForm((prev) => ({ ...prev, patient: item.id })); setModal(null); go('Submit update'); }}><Send size={15} /> Submit an update for {item.name.split(' ')[0]}</button></>;
+    if (modal.type === 'submitted') return <><span className="eyebrow">UPDATE RECORDED · {item.id}</span><h2>{item.correctedAt ? 'Your correction was recorded.' : 'Your update was recorded.'}</h2><p className="modal-lead">{patientFor(item.patient).name} · Room {patientFor(item.patient).room} · {formatTime(item.createdAt)} Pacific · by {nurse.name}</p>{item.urgent && <Badge tone="red">Marked urgent</Badge>}<div className="source-quote">{item.text}</div><p className="muted">Category: {item.category}{item.correctedAt ? ` · Corrected ${formatTime(item.correctedAt)} Pacific` : ''}</p>{item.history?.length > 0 && <div className="detail-block"><h3>Correction history <span className="count">{item.history.length}</span></h3>{item.history.map((version, index) => <div className="detail-list-item" key={index}><FileText size={16} /><span>{version.text}<small>{version.category}{version.urgent ? ' · Urgent' : ''} · replaced {formatTime(version.editedAt)} Pacific</small></span></div>)}<p className="muted">The original and each prior version are preserved, never overwritten.</p></div>}<button className="secondary-button modal-footer-button" onClick={() => editUpdate(item)}><FileText size={15} /> Correct this update</button><div className="notice">Recorded in this browser session with your name and timestamp. In the full app it would be persisted before any AI processing, so the original text is never lost even if AI processing later fails. This local prototype has no shared storage or AI connection.</div></>;
     return <><span className="eyebrow">ABOUT THIS VIEW</span><h2>The nurse's view.</h2><p className="modal-lead">Submit updates and act on the tasks assigned to you.</p><p>This local visual prototype uses fictional people and synthetic data. Task status changes and submitted updates live only in this browser session. Sign-in, shared storage, and AI processing are not connected.</p></>;
   }
 
@@ -196,15 +219,15 @@ function NurseView({ role, setRole }) {
 
     {page === 'My tasks' && <section className="panel"><div className="panel-heading"><div><h2>My tasks <span className="count">{myTasks.length}</span></h2><p>Report completion or delays. Status changes are local previews.</p></div></div><div className="nurse-task-grid full">{sortedTasks.map(taskCard)}{!sortedTasks.length && <div className="empty-state"><ClipboardCheck size={25} /><h3>No tasks assigned</h3><p>You're all caught up.</p></div>}</div></section>}
 
-    {page === 'Submit update' && <section className="panel submit-panel"><div className="panel-heading"><div><h2><Send size={16} className="teal-text" /> Submit a nurse update</h2><p>Share a patient update, concern, or task status with the charge nurse.</p></div></div>
+    {page === 'Submit update' && <section className="panel submit-panel"><div className="panel-heading"><div><h2><Send size={16} className="teal-text" /> {editingId ? 'Correct your update' : 'Submit a nurse update'}</h2><p>{editingId ? 'Edit the text below. The previous version is kept as correction history.' : 'Share a patient update, concern, or task status with the charge nurse.'}</p></div>{editingId && <button className="secondary-button" onClick={() => { setEditingId(null); setForm({ patient: '', category: updateCategories[0], text: '', urgent: false }); }}>Cancel edit</button>}</div>
       <form className="update-form" onSubmit={submitUpdate}>
         <label>Patient<select value={form.patient} onChange={(event) => setForm((prev) => ({ ...prev, patient: event.target.value }))} required><option value="" disabled>Select a patient…</option>{myPatients.map((patient) => <option value={patient.id} key={patient.id}>{patient.name} · Room {patient.room}</option>)}</select></label>
         <label>Category<select value={form.category} onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}>{updateCategories.map((category) => <option key={category}>{category}</option>)}</select></label>
         <label className="full-width">Update<textarea rows={4} value={form.text} onChange={(event) => setForm((prev) => ({ ...prev, text: event.target.value }))} placeholder="Describe the patient condition, concern, or task status in plain language…" required /></label>
         <label className="checkbox-row"><input type="checkbox" checked={form.urgent} onChange={(event) => setForm((prev) => ({ ...prev, urgent: event.target.checked }))} /> Mark this update as urgent</label>
-        <div className="form-actions"><button type="submit" className="primary-button" disabled={!form.patient || !form.text.trim()}><Send size={15} /> Submit update</button><span className="muted small-text"><ShieldCheck size={12} /> Draft saved to this session only</span></div>
+        <div className="form-actions"><button type="submit" className="primary-button" disabled={!form.patient || !form.text.trim()}><Send size={15} /> {editingId ? 'Save correction' : 'Submit update'}</button><span className="muted small-text"><ShieldCheck size={12} /> Recorded in this session only</span></div>
       </form>
-      <div className="notice">Your update is recorded with your name and a timestamp. In the full app it would be persisted before any Amazon Bedrock processing, so the original is never lost if AI processing fails. This local prototype keeps it in your browser only and does not connect to shared storage or AI.</div>
+      <div className="notice">Your update is recorded with your name and a timestamp. Corrections keep every prior version, so the original is never overwritten. In the full app it would be persisted before any Amazon Bedrock processing, so the original is never lost if AI processing fails. This local prototype keeps it in your browser only and does not connect to shared storage or AI.</div>
     </section>}
   </>;
 
