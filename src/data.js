@@ -1,0 +1,49 @@
+// Fictional fixtures only. Relative timestamps keep the visual demo useful on each reload.
+export const demoNow = Date.now();
+const minutesAgo = (minutes) => new Date(demoNow - minutes * 60_000).toISOString();
+const minutesFromNow = (minutes) => new Date(demoNow + minutes * 60_000).toISOString();
+export const incident = { id: 'INC-0042', type: 'EHR outage', startedAt: minutesAgo(104), unit: 'Medical–Surgical · Unit 4 West' };
+export const nurses = [
+  { id: 'n1', name: 'Sarah Chen', initials: 'SC', status: 'At capacity', patients: 4, tone: 'purple' },
+  { id: 'n2', name: 'James Wilson', initials: 'JW', status: 'Available', patients: 3, tone: 'blue' },
+  { id: 'n3', name: 'Maria Garcia', initials: 'MG', status: 'Available', patients: 3, tone: 'peach' },
+  { id: 'n4', name: 'David Park', initials: 'DP', status: 'At capacity', patients: 4, tone: 'green' },
+  { id: 'n5', name: 'Emily Brooks', initials: 'EB', status: 'On break', patients: 3, tone: 'pink' },
+  { id: 'n6', name: 'Alex Morgan', initials: 'AM', status: 'At capacity', patients: 4, tone: 'blue' },
+];
+export const patients = [
+  { id: 'CB-1001', name: 'Eleanor Mitchell', age: 72, room: '401', initials: 'EM', nurse: 'n1', priority: 'High', concern: 'Assessment follow-up pending', detail: 'A repeat assessment was requested in the original nurse update. Confirm the bedside findings with the assigned nurse.', verifiedAt: minutesAgo(12), note: 'Follow-up requested', source: 'UPD-101' },
+  { id: 'CB-1002', name: 'Robert Davis', age: 65, room: '403', initials: 'RD', nurse: 'n2', priority: 'High', concern: 'Time-sensitive task delayed', detail: 'The assigned nurse reported a delayed continuity check during the EHR outage. Follow up on the recorded task.', verifiedAt: minutesAgo(24), note: 'Overdue task', source: 'UPD-102' },
+  { id: 'CB-1003', name: 'Patricia Lee', age: 58, room: '405', initials: 'PL', nurse: 'n3', priority: 'Moderate', concern: 'Continuity information unverified', detail: 'The continuity packet needs verification against the available source records. No clinical conclusions have been inferred.', verifiedAt: minutesAgo(85), note: 'Needs verification', source: 'UPD-103' },
+  { id: 'CB-1004', name: 'Michael Thompson', age: 81, room: '407', initials: 'MT', nurse: 'n4', priority: 'Moderate', concern: 'Supply request pending', detail: 'The bedside nurse requested additional downtime documentation supplies.', verifiedAt: minutesAgo(18), note: 'Supply concern', source: 'UPD-104' },
+  { id: 'CB-1005', name: 'Linda Martinez', age: 46, room: '409', initials: 'LM', nurse: 'n1', priority: 'Low', concern: 'No new concerns reported', detail: 'The latest update reports no new coordination concerns. Continue to verify information with the care team.', verifiedAt: minutesAgo(31), note: 'Up to date', source: 'UPD-105' },
+  { id: 'CB-1006', name: 'William Anderson', age: 69, room: '411', initials: 'WA', nurse: 'n2', priority: 'Moderate', concern: 'Handoff confirmation needed', detail: 'Receipt of the downtime handoff has not yet been confirmed.', verifiedAt: null, note: 'Not yet verified', source: 'UPD-106' },
+  { id: 'CB-1007', name: 'Susan Taylor', age: 54, room: '413', initials: 'ST', nurse: 'n3', priority: 'Low', concern: 'No new concerns reported', detail: 'The latest update reports no outstanding coordination concerns.', verifiedAt: minutesAgo(9), note: 'Up to date', source: 'UPD-107' },
+  { id: 'CB-1008', name: 'Richard Brown', age: 77, room: '415', initials: 'RB', nurse: 'n4', priority: 'Moderate', concern: 'Continuity information unverified', detail: 'The last verification is outside the prototype freshness window. Ask the care team to confirm the source information.', verifiedAt: minutesAgo(72), note: 'Needs verification', source: 'UPD-108' },
+];
+export const updates = [
+  { id: 'UPD-101', patient: 'CB-1001', nurse: 'n1', createdAt: minutesAgo(4), urgent: true, category: 'Patient concern', text: 'Bedside assessment completed. Follow-up assessment requested; please confirm who can assist.', processing: 'Illustrative AI review available' },
+  { id: 'UPD-102', patient: 'CB-1002', nurse: 'n2', createdAt: minutesAgo(9), urgent: true, category: 'Delayed task', text: 'Continuity check delayed while source records are located. Charge nurse follow-up requested.', processing: 'AI processing failed · original update retained' },
+  { id: 'UPD-104', patient: 'CB-1004', nurse: 'n4', createdAt: minutesAgo(18), urgent: false, category: 'Supply request', text: 'Running low on printed downtime forms at the west station. Additional packets requested.', processing: 'Not processed in this prototype' },
+  { id: 'UPD-103', patient: 'CB-1003', nurse: 'n3', createdAt: minutesAgo(26), urgent: false, category: 'Verification', text: 'Continuity packet is available. Source verification is still pending.', processing: 'Not processed in this prototype' },
+  { id: 'UPD-105', patient: 'CB-1005', nurse: 'n1', createdAt: minutesAgo(31), urgent: false, category: 'Patient update', text: 'Downtime handoff received. No new coordination concerns reported.', processing: 'Not processed in this prototype' },
+  { id: 'UPD-106', patient: 'CB-1006', nurse: 'n2', createdAt: minutesAgo(37), urgent: false, category: 'Handoff', text: 'Awaiting confirmation that the receiving nurse has reviewed the downtime handoff.', processing: 'Not processed in this prototype' },
+  { id: 'UPD-107', patient: 'CB-1007', nurse: 'n3', createdAt: minutesAgo(43), urgent: false, category: 'Patient update', text: 'Continuity information checked. No new coordination concerns reported.', processing: 'Not processed in this prototype' },
+  { id: 'UPD-108', patient: 'CB-1008', nurse: 'n4', createdAt: minutesAgo(49), urgent: false, category: 'Verification', text: 'Available continuity information needs to be verified with source records.', processing: 'Not processed in this prototype' },
+];
+export const tasks = [
+  { id: 'TSK-201', patient: 'CB-1001', description: 'Confirm follow-up assessment coverage', nurse: 'n1', priority: 'High', dueAt: minutesFromNow(-14), status: 'Delayed', createdAt: minutesAgo(40), creator: 'Olivia Bennett' },
+  { id: 'TSK-202', patient: 'CB-1002', description: 'Follow up on delayed continuity check', nurse: 'n2', priority: 'High', dueAt: minutesFromNow(-8), status: 'Unconfirmed', createdAt: minutesAgo(35), creator: 'Olivia Bennett' },
+  { id: 'TSK-203', patient: 'CB-1003', description: 'Verify continuity packet with source records', nurse: 'n3', priority: 'Moderate', dueAt: minutesFromNow(12), status: 'In progress', createdAt: minutesAgo(30), creator: 'Olivia Bennett' },
+  { id: 'TSK-204', patient: 'CB-1004', description: 'Locate additional downtime forms', nurse: 'n4', priority: 'Moderate', dueAt: minutesFromNow(20), status: 'Unconfirmed', createdAt: minutesAgo(24), creator: 'Olivia Bennett' },
+  { id: 'TSK-205', patient: 'CB-1006', description: 'Confirm receipt of downtime handoff', nurse: 'n2', priority: 'Moderate', dueAt: minutesFromNow(25), status: 'In progress', createdAt: minutesAgo(20), creator: 'Olivia Bennett' },
+  { id: 'TSK-206', patient: 'CB-1008', description: 'Review unverified continuity information', nurse: 'n4', priority: 'Moderate', dueAt: minutesFromNow(35), status: 'In progress', createdAt: minutesAgo(15), creator: 'Olivia Bennett' },
+  { id: 'TSK-207', patient: 'CB-1005', description: 'Prepare next shift coordination notes', nurse: 'n1', priority: 'Low', dueAt: minutesFromNow(50), status: 'In progress', createdAt: minutesAgo(10), creator: 'Olivia Bennett' },
+];
+export const recommendations = [
+  { id: 'REC-01', patient: 'CB-1001', title: 'Confirm support for the follow-up assessment', reason: 'The source update requests assistance and does not confirm coverage. Review the request with the assigned nurse.', source: 'UPD-101' },
+  { id: 'REC-02', patient: 'CB-1003', title: 'Prioritize continuity packet verification', reason: 'The source update explicitly says verification is pending. Confirm the available records before using the information.', source: 'UPD-103' },
+];
+export function isUnverified(patient, now) { return !patient.verifiedAt || now - Date.parse(patient.verifiedAt) > 60 * 60_000; }
+export function minutesSince(date, now) { return Math.max(0, Math.floor((now - Date.parse(date)) / 60_000)); }
+export function formatTime(date) { return new Intl.DateTimeFormat('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Los_Angeles' }).format(new Date(date)); }

@@ -6,7 +6,19 @@ CareBridge assumes electricity and basic internet connectivity remain available.
 
 ## Project status
 
-This repository is at the requirements stage. It currently contains project documentation and the [CareBridge requirements](docs/CareBridge_Requirements.md); application code, infrastructure, and automated tests have not yet been added. Features and architecture described below are planned, not implemented.
+This repository contains a **local charge nurse visual prototype**, built with React and Vite, alongside the [CareBridge requirements](docs/CareBridge_Requirements.md). The prototype uses synthetic fixtures and a calm, light interface with teal accents. It is not the operational MVP: backend services, authentication, shared persistence, AWS infrastructure, and live AI integrations are not implemented. The broader features and AWS architecture below remain planned unless explicitly listed here.
+
+The sample includes:
+
+- An overview with an active incident timer, priority counts, patient table, urgent nurse updates, supply concern, and staffing summary.
+- Patient search by name, identifier, room, concern, or nurse; priority and verification filters; nurse filtering; and priority, name, or room sorting.
+- Patient details linked to original synthetic nurse updates, plus task details and status filtering and sorting.
+- Care team, illustrative AI review, policy-unavailable, and crisis handoff preview screens.
+- Responsive navigation and layouts, keyboard-accessible controls, and native modal dialogs.
+
+Task assignment, recommendation decisions, and policy questions are intentionally disabled previews. No clinical action, assignment, escalation, message, or incident closure occurs. The displayed charge nurse is a fictional demo persona, not an authenticated session. There is no data-entry or persistence path; do not connect real patient data to this prototype.
+
+These screens explore FR-7, FR-11, FR-22–FR-24, FR-29–FR-33, FR-37, FR-39, and FR-43 visually; they do not satisfy the complete backend, authorization, audit, or AWS requirements.
 
 The project targets an 18-hour hackathon build using **synthetic patient data only**. It is a demonstration, with no claim of production readiness or regulatory certification.
 
@@ -103,11 +115,40 @@ These are acceptance targets from the requirements, not measured results.
 | Highest-priority issue identification | Within 10 seconds of opening the charge nurse dashboard. |
 | Device support | Desktop, tablet, and mobile browsers. |
 
-Use plain language and clear urgency labels; do not rely on color alone to convey priority. Verification freshness thresholds and the exact meaning of prompt dashboard updates still need implementation decisions.
+Use plain language and clear urgency labels; do not rely on color alone to convey priority. Operational verification freshness thresholds and the exact meaning of prompt dashboard updates still need implementation decisions; the visual prototype uses the documented 60-minute example below.
 
 ## Local development
 
-There are no install, run, test, or deployment commands yet because no application stack has been committed. Add verified commands here when the corresponding implementation exists.
+Use Node.js 22.12 or later in the Node 22 line, or a newer supported LTS release, and npm. From the repository root:
+
+```sh
+npm install
+npm run dev
+```
+
+Open the Local URL printed by Vite (normally `http://127.0.0.1:5173`). The development server binds to loopback. Stop it with Ctrl+C.
+
+```sh
+npm run build    # Create the production frontend in dist/
+npm run preview  # Serve that build locally (normally port 4173)
+```
+
+`npm install`, `npm run dev`, and `npm run build` were verified with Node 22.16.0 and npm 10.9.2. The production build passed; the dev server returned HTTP 200. `npm run preview` is configured but was not separately exercised. The dependency lockfile is included with the source so subsequent installs can use `npm ci`.
+
+### Frontend structure and demo behavior
+
+- `src/main.jsx`: React screens, search/filter state, and read-only detail dialogs.
+- `src/data.js`: synthetic patients, nurses, updates, tasks, incident, and authored AI examples. Source updates and recommendations are separate records linked by identifiers.
+- `src/styles.css`: light/teal styling and responsive layouts. DM Sans and Manrope load from Google Fonts when reachable, with local sans-serif fallbacks.
+- `index.html`: Vite entry point. No credentials or AWS settings are needed.
+
+All records are read-only, in-memory fixtures. The sample clock anchors on each page load. Incident duration and overdue/freshness calculations use timestamps, refresh every 30 seconds, and do not depend on the viewer's locale. Displayed times use `America/Los_Angeles` (Pacific time). Information is flagged as unverified if it has no verification timestamp or was last verified more than **60 minutes** ago; this is a prototype choice, not a requirement or facility policy.
+
+The eight displayed patients are a subset of a fictional staffing plan. AI text is authored sample content, not generated by Bedrock. One update demonstrates an AI-failure presentation while retaining its original source text; no actual save or AI request occurs. The policy screen explicitly reports that no policy source is connected and produces no answer or citation. Handoff is a read-only view, not an export or incident closure.
+
+### Verification
+
+See [frontend verification notes](docs/Frontend_Verification.md) for browser checks and remaining limits. This visual-only change does not add an application test suite. Backend authorization, persistence, approval enforcement, retries, AWS integrations, and operational performance targets remain unverified and unimplemented.
 
 Before integrating AWS, select a region and a supported Bedrock model, establish least-privilege service permissions, configure Guardrails, and prepare a Knowledge Base with synthetic or demonstration facility policies. Document actual configuration variable names and setup steps alongside the implementation; do not commit secrets.
 
