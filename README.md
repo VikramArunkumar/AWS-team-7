@@ -11,9 +11,14 @@ This repository contains a React/Vite frontend, a SAM backend in [`backend/`](ba
 Implemented:
 
 - **Sign-in, sign-out, and role-based access (FR-1–FR-4, NFR-8).** Amazon Cognito hosted login with the authorization code flow and PKCE, administrator-created accounts, and `nurse` / `charge_nurse` groups. The frontend calls `GET /me` to confirm backend authentication and picks screens from the role the API reports: `charge_nurse` gets the charge nurse dashboard and `nurse` gets the nurse view. The API's Cognito authorizer protects every route, and Lambda enforces roles and ownership from verified claims only. Details are in the [backend README](backend/README.md#how-authentication-works).
-- **Backend scaffold.** Single-table DynamoDB persistence, persist-first nurse updates, backend-enforced recommendation approval (NFR-24), task ownership rules, and an audit log. Bedrock is a labeled stub.
+- **Backend scaffold.** Single-table DynamoDB persistence, persist-first nurse updates, backend-enforced recommendation approval (NFR-24), task ownership rules, and an audit log.
+- **Amazon Bedrock integration (FR-18–FR-29, NFR-12, NFR-15, NFR-23), live mode not yet verified against AWS.**
+  - With `BedrockMode=live`, **Run AI review** calls the Bedrock Converse API with a Guardrail, using the update, the patient's profile, and their recent updates. Validated output is stored as proposed recommendations with a suggested priority and source update ids.
+  - The policy assistant calls `POST /policy/ask`, which answers from a Bedrock Knowledge Base over the synthetic policies in `backend/policies/`. Citations come from the retrieved documents, and the endpoint gives an explicit no-evidence result.
+  - The default `BedrockMode=stub` keeps the labeled synthetic stub.
+  - Setup, configuration, and policy update steps are in the [backend README](backend/README.md#bedrock).
 - **Nurse workspace connected to the API (FR-13–FR-17, FR-38, FR-39).** The nurse view reads `GET /incidents/{id}/workspace`, which returns only the signed-in nurse's patients, assigned tasks, and own updates. Updates, corrections, and task status changes are saved through the API.
-- **Charge nurse dashboard connected to the API (FR-30–FR-34, FR-36–FR-40, NFR-24, NFR-25).** It reads `GET /incidents/{id}/dashboard`, so it shows what nurses save. Approving (with edits) or rejecting AI recommendations, running AI review on an update, and reassigning or updating tasks go through the backend, which enforces the charge nurse role and human approval. AI review is still the labeled Bedrock stub.
+- **Charge nurse dashboard connected to the API (FR-30–FR-34, FR-36–FR-40, NFR-24, NFR-25).** It reads `GET /incidents/{id}/dashboard`, so it shows what nurses save. Approving (with edits) or rejecting AI recommendations, running AI review on an update, and reassigning or updating tasks go through the backend, which enforces the charge nurse role and human approval. AI review uses Bedrock when the backend is deployed in live mode, otherwise the labeled stub.
 
 Main remaining auth gaps: the deployed smoke test has not been run, no in-app administrator role, and a window of up to 30 minutes in which an access token issued before sign-out still works. The full list is in the [backend README](backend/README.md#remaining-gaps). Because there is no administrator role, the administrator console in `src/admin/` is built but not reachable. The broader features and AWS architecture below remain planned unless listed here.
 
@@ -219,17 +224,17 @@ Deploy a stack whose `FrontendOrigin`, `CallbackUrl`, and `SignOutUrl` use the h
 
 Both views read stored timestamps from the API. Incident duration and overdue/freshness calculations use timestamps, refresh every 30 seconds, and do not depend on the viewer's locale. Displayed times use `America/Los_Angeles` (Pacific time). Information is flagged as unverified if it has no verification timestamp or was last verified more than **60 minutes** ago; this is a prototype choice, not a requirement or facility policy.
 
-The seeded demo incident has eight patients and two authored recommendations; recommendations created by **Run AI review** come from the backend's labeled stub, not Bedrock. The policy assistant answers questions by matching keywords against synthetic, in-browser policy fixtures and cites the matched fixture document; unmatched questions produce an explicit no-evidence response. It performs no AI reasoning and no retrieval, and does not use a Bedrock Knowledge Base or any backend. Handoff is a read-only view, not an export or incident closure.
+The seeded demo incident has eight patients and two authored recommendations. Recommendations created by **Run AI review** come from Bedrock in live mode, or from the backend's labeled stub otherwise. The policy assistant asks the backend, which answers from the Bedrock Knowledge Base. If the Knowledge Base is not configured (`503 policy_unavailable`), the assistant falls back to matching keywords against the in-browser fixtures in `src/policies.js` and labels the result as a keyword match, not an AI answer. Handoff is a read-only view, not an export or incident closure.
 
 The nurse view uses the same 60-minute freshness threshold, returned by the API in `meta.verificationFreshnessMinutes`, and recalculates overdue and unverified indicators every 30 seconds from the stored timestamps.
 
 ### Policy assistant: demo vs. intended design
 
-The current policy assistant is a frontend-only demonstration. A nurse's question is matched by simple keyword lookup against five synthetic policy fixtures in `src/policies.js`, and the matched fixture is shown with a citation to its (fictional) document reference. There is no AI, no semantic understanding, and no network call; questions that do not hit a known keyword return an explicit no-evidence response rather than a guess.
+`src/PolicyAssistant.jsx` calls `POST /policy/ask`. The backend retrieves passages from the Bedrock Knowledge Base, has the model answer only from them (through the Guardrail), and builds citations from the retrieved documents' metadata. It returns `found: false` when nothing relevant is retrieved or the passages don't answer the question. The answer is labeled AI-generated, with a prompt to verify before acting.
 
-The intended design (FR-27) replaces the local lookup with a backend call to an Amazon Bedrock Knowledge Base built over real facility policy documents (for example, stored in S3). The frontend contract is unchanged — a question in, a cited answer or no-evidence response out — so the integration point is the single `findPolicies` call in `src/PolicyAssistant.jsx`.
+Policy content lives in the Knowledge Base data source, seeded from the fictional documents in `backend/policies/`. Updating it means uploading to S3 and syncing, with no code change (NFR-26).
 
-Known demo limitations: policy content is editable only by changing `src/policies.js` (code), so it does not yet satisfy the "updateable without application code changes" goal; and matching is keyword-based, so rephrased questions may not match. These are demo constraints, not the intended production behavior.
+The keyword fallback against `src/policies.js` is used only when the backend reports that the Knowledge Base is not configured, and it is labeled as such. The policy assistant is available only on the charge nurse dashboard; the nurse view does not include it yet, although the endpoint allows nurses.
 
 ### Verification
 
@@ -253,9 +258,22 @@ After connecting the nurse view to the API (October 24, 2026): `npm test` (29 pa
 
 After connecting the charge nurse dashboard to the API (October 24, 2026): `npm test` (39 pass), `npm run build`, and `cd backend && npm test` (124 pass with mocked claims) pass. A temporary headless-Chrome harness rendered `ChargeDashboard` against a fake API built from the seed items: overview, tasks, care team, and AI review pages rendered; approving, rejecting, running AI review, and reassigning a task showed the saved results; failed approval, failed AI review, and a failed load showed their messages. It found a horizontal overflow at narrow widths caused by an absolutely positioned screen-reader label in the patient table, fixed by making `.table-scroll` a positioning container; after the fix there was no horizontal overflow at 500 and 820 pixels. Not exercised against live AWS.
 
+After adding the Bedrock integration (October 24, 2026), these all pass:
+
+- `npm test`: 41 tests.
+- `npm run build`.
+- `cd backend && npm test`: 143 tests. These include mocked-Bedrock tests:
+  - Valid output, malformed JSON, citations to ids that were not supplied, invalid priorities, Guardrail intervention, and service errors. Each failure returns `502 ai_unavailable`, writes no recommendation, and leaves the update unchanged and retryable.
+  - Prompt context limited to the patient's own updates.
+  - Policy answers with retrieved citations, no-evidence results with and without retrieval hits, rejected citations to passages that were not retrieved, Guardrail refusal, and role checks.
+- `sam validate --lint`.
+- `scripts/check-template-auth.py`: `/policy/ask` requires `CognitoAuthorizer` with `carebridge/access`.
+
+Not verified: any call to live Bedrock, the Guardrail, or the Knowledge Base, the IAM policies in a deployed stack, or AI latency against the 10–15 second target.
+
 See [frontend verification notes](docs/Frontend_Verification.md) for the earlier visual prototype checks. Persistence through the UI, retries, AWS integrations, and operational performance targets remain unverified.
 
-Before integrating AWS, select a region and a supported Bedrock model, establish least-privilege service permissions, configure Guardrails, and prepare a Knowledge Base with synthetic or demonstration facility policies. Document actual configuration variable names and setup steps alongside the implementation; do not commit secrets.
+Bedrock configuration variable names, least-privilege permissions, and Guardrail and Knowledge Base setup are documented in the [backend README](backend/README.md#bedrock). The model, Guardrail, and Knowledge Base ids are deployment parameters, not committed values.
 
 ## Demo acceptance checklist
 

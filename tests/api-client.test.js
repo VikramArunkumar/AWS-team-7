@@ -118,6 +118,13 @@ describe('charge nurse calls', () => {
     baseUrl: BASE, getAccessToken: () => TOKEN, fetchImpl: async (url, init) => { calls.push({ url, init }); return jsonResponse(200, {}); },
   });
 
+  test('policy questions POST the question to /policy/ask', async () => {
+    const calls = [];
+    await client(calls).askPolicy('How do I hand off?');
+    assert.equal(`${calls[0].init.method} ${calls[0].url.slice(BASE.length)}`, 'POST /policy/ask');
+    assert.deepEqual(JSON.parse(calls[0].init.body), { question: 'How do I hand off?' });
+  });
+
   test('dashboard, decisions, AI review, and task edits use the documented routes', async () => {
     const calls = [];
     const api = client(calls);

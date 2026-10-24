@@ -94,7 +94,9 @@ export function approvalDefaults(rec, patient, nurses) {
   const assigned = nurses.some((n) => n.id === patient?.nurse) ? patient.nurse : (nurses[0]?.id ?? '');
   return {
     assignedNurse: assigned,
-    priority: PRIORITIES.includes(patient?.priority) ? patient.priority : 'Moderate',
+    // An AI-suggested priority is only a prefilled default; the charge nurse can change it.
+    priority: PRIORITIES.includes(rec.priority) ? rec.priority
+      : PRIORITIES.includes(patient?.priority) ? patient.priority : 'Moderate',
     description: rec.title ?? '',
     due: '30',
   };

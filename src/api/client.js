@@ -122,6 +122,8 @@ export function createApiClient({ baseUrl, getAccessToken, fetchImpl = globalThi
       `${incidentPath(incidentId)}/tasks/${seg(taskId)}`,
       { method: 'PATCH', body: patch },
     ),
+    /** Ask the policy assistant; answers cite Knowledge Base documents or report none found. */
+    askPolicy: (question) => request('/policy/ask', { method: 'POST', body: { question } }),
     /** Report status on a task assigned to the caller. */
     setTaskStatus: (incidentId, taskId, status) => request(
       `${incidentPath(incidentId)}/tasks/${seg(taskId)}`,
