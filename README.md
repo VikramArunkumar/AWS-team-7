@@ -6,7 +6,7 @@ CareBridge assumes electricity and basic internet connectivity remain available.
 
 ## Project status
 
-This repository contains a **local charge nurse visual prototype**, built with React and Vite, alongside the [CareBridge requirements](docs/CareBridge_Requirements.md). The prototype uses synthetic fixtures and a calm, light interface with teal accents. It is not the operational MVP: backend services, authentication, shared persistence, AWS infrastructure, and live AI integrations are not implemented. The broader features and AWS architecture below remain planned unless explicitly listed here.
+This repository contains a **local charge nurse visual prototype**, built with React and Vite, alongside the [CareBridge requirements](docs/CareBridge_Requirements.md). The prototype uses synthetic fixtures and a calm, light interface with teal accents. It is not the operational MVP: backend services, backend authentication and enforcement, shared persistence, AWS infrastructure, and live AI integrations are not implemented. A frontend-only demo sign-in with role routing is included (see below); it is not real authentication. The broader features and AWS architecture below remain planned unless explicitly listed here.
 
 The sample includes:
 
@@ -15,8 +15,9 @@ The sample includes:
 - Patient details linked to original synthetic nurse updates, plus task details and status filtering and sorting.
 - Care team, illustrative AI review, policy-unavailable, and crisis handoff preview screens.
 - Responsive navigation and layouts, keyboard-accessible controls, and native modal dialogs.
+- A frontend-only demo sign-in that routes each synthetic account to its role (charge nurse to the dashboard; nurse and admin to placeholder slots) and a sign-out control. This is a client-side mock with no backend, no real credential check, and no security; it only selects which screens are shown.
 
-Task assignment, recommendation decisions, and policy questions are intentionally disabled previews. No clinical action, assignment, escalation, message, or incident closure occurs. The displayed charge nurse is a fictional demo persona, not an authenticated session. There is no data-entry or persistence path; do not connect real patient data to this prototype.
+Task assignment, recommendation decisions, and policy questions are intentionally disabled previews. No clinical action, assignment, escalation, message, or incident closure occurs. Each signed-in user is a fictional demo persona selected through a client-side mock sign-in; this is not a securely authenticated session, and role routing hides screens rather than enforcing access. There is no data-entry or persistence path; do not connect real patient data to this prototype.
 
 These screens explore FR-7, FR-11, FR-22–FR-24, FR-29–FR-33, FR-37, FR-39, and FR-43 visually; they do not satisfy the complete backend, authorization, audit, or AWS requirements.
 
