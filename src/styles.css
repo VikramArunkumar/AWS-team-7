@@ -21,3 +21,18 @@
 .attention-banner{display:flex;align-items:center;gap:14px;border:1px solid #e9ddc5;background:#fffaf0;border-radius:9px;padding:16px 18px;margin-bottom:20px;color:#a07d45}.attention-banner>svg{flex-shrink:0;color:#c0923f}.attention-text{display:flex;flex-direction:column;gap:5px}.attention-text strong{font-size:12px;color:#8c6f3f}.attention-text span{font-size:11px;color:#a89267}.attention-actions{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap}.attention-actions .secondary-button{font-size:10px;padding:8px 11px;min-height:32px;border-color:#e7d6b4;background:#fffdf8;color:#8c6f3f}.attention-actions .secondary-button:hover{background:#fff7e9;border-color:#d9c196}
 .task-confirm{display:flex;align-items:center;gap:6px;margin:12px 0 0;padding-top:12px;border-top:1px solid #eaf1ea;font-size:10px;color:#5f9173}.task-confirm svg{color:#6ba085}
 @media(max-width:560px){.attention-banner{flex-wrap:wrap}.attention-actions{margin-left:0;width:100%}.attention-actions .secondary-button{flex:1}.dialog-content .detail-grid{grid-template-columns:1fr;gap:10px}.dialog-content .detail-grid dd{text-align:left;margin-top:-4px;color:#4a5e51;font-weight:500}}
+
+/* ── Policy assistant answer + citations (frontend-only demo). Reuses theme. ── */
+.policy-answer{margin-top:26px;border-top:1px solid var(--border);padding-top:24px}
+.policy-answer>.eyebrow{font-size:8px;letter-spacing:1px;color:#7f9a86;margin-bottom:16px}
+.policy-result{border:1px solid #e4ece6;background:#fbfdfb;border-radius:9px;padding:19px 18px;margin-bottom:13px}
+.policy-result h3{font-size:13px;font-weight:650;color:#3f5a4a;margin-bottom:9px}
+.policy-result p{font-size:12px;line-height:1.85;color:#6d7e73}
+.policy-citation{display:flex;align-items:flex-start;gap:9px;margin-top:14px;padding-top:13px;border-top:1px solid #e9efe9;color:#5a826b}
+.policy-citation svg{flex-shrink:0;margin-top:2px}
+.policy-citation strong{display:block;font-size:11px;color:#4c6555}
+.policy-citation small{display:block;font-size:10px;color:#8a9a8e;margin-top:4px}
+.policy-disclaimer{display:flex;align-items:flex-start;gap:7px;font-size:10px;line-height:1.7;color:#8b988d;margin-top:16px}
+.policy-disclaimer svg{flex-shrink:0;margin-top:2px;color:#8aa796}
+.policy-hint{display:flex;align-items:center;gap:8px;margin-top:22px;padding:13px 15px;border:1px dashed #d8e2da;border-radius:7px;font-size:11px;color:#7d8d81;background:#fafcfb}
+.policy-hint svg{flex-shrink:0;color:#8aa796}
