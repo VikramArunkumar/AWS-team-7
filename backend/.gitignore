@@ -1,0 +1,11 @@
+# SAM build output
+.aws-sam/
+
+# Node
+node_modules/
+
+# SAM deploy config (may contain account-specific values)
+samconfig.toml
+
+# Local env overrides
+env.local.*.json
