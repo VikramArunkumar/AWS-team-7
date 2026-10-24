@@ -87,6 +87,7 @@
 .admin-overview-value{font-family:'Manrope','DM Sans',sans-serif;font-size:26px;font-weight:700;letter-spacing:-1px;color:#2e4a3a}
 .admin-overview-label{font-size:9px;color:#8aa294;font-weight:500;letter-spacing:.3px}
 .admin-service-table h3{font-size:12px;font-weight:700;color:#4a6052;margin-bottom:0}
+.admin-service-note{font-size:10px;color:#8da290;line-height:1.7;margin-top:6px;max-width:620px}
 
 /* Policy stats row */
 .admin-stat-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}

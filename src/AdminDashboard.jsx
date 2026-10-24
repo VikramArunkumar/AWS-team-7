@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import {
-  Activity, ArrowRight, BookOpen, CheckCheck, ChevronRight,
+  Activity, BookOpen, CheckCheck,
   ClipboardList, FileText, Plus, Search, Settings, Shield,
-  Trash2, TriangleAlert, Upload, UserCog, Users, X, Eye, EyeOff,
-  Database, RefreshCw, AlertCircle, Lock, Unlock, Edit3
+  Trash2, Upload, UserCog, Users, X, Eye, EyeOff,
+  Database, RefreshCw, AlertCircle, Lock, Edit3
 } from 'lucide-react';
 import { incident, nurses, patients, updates, tasks } from './data.js';
 
@@ -71,13 +71,11 @@ const incidentTypes = [
 // ── sub-panels ────────────────────────────────────────────────────────────────
 
 function UserManagement() {
-  const [users, setUsers] = useState(initialUsers);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('All roles');
-  const [modal, setModal] = useState(null); // { type: 'add'|'edit'|'confirm', user? }
-  const [formData, setFormData] = useState({ name: '', email: '', role: 'Nurse' });
   const [notice, setNotice] = useState(null);
 
+  const users = initialUsers;
   const roles = ['All roles', 'Nurse', 'Charge nurse', 'System administrator'];
 
   const filtered = users.filter((u) => {
@@ -90,42 +88,7 @@ function UserManagement() {
 
   function toast(msg) {
     setNotice(msg);
-    setTimeout(() => setNotice(null), 3000);
-  }
-
-  function handleAdd() {
-    if (!formData.name.trim() || !formData.email.trim()) return;
-    setUsers((prev) => [
-      ...prev,
-      {
-        id: `u${Date.now()}`,
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        role: formData.role,
-        status: 'Active',
-        lastSeen: 'Never',
-      },
-    ]);
-    setModal(null);
-    setFormData({ name: '', email: '', role: 'Nurse' });
-    toast(`${formData.name} added successfully.`);
-  }
-
-  function handleToggleStatus(id) {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === id
-          ? { ...u, status: u.status === 'Active' ? 'Inactive' : 'Active' }
-          : u
-      )
-    );
-  }
-
-  function handleDelete(id) {
-    const user = users.find((u) => u.id === id);
-    setUsers((prev) => prev.filter((u) => u.id !== id));
-    setModal(null);
-    toast(`${user.name} removed.`);
+    setTimeout(() => setNotice(null), 3500);
   }
 
   return (
@@ -133,16 +96,24 @@ function UserManagement() {
       <SectionHeading
         icon={UserCog}
         title="User management"
-        subtitle="Manage nurse and charge nurse accounts. Role changes take effect on next sign-in."
+        subtitle="Review nurse and charge nurse accounts. Detailed administrator permissions are not yet defined in the requirements."
         action={
           <button
             className="primary-button admin-add-btn"
-            onClick={() => { setFormData({ name: '', email: '', role: 'Nurse' }); setModal({ type: 'add' }); }}
+            disabled
+            title="Preview only — requires an authorized backend"
           >
-            <Plus size={15} /> Add user
+            <Plus size={15} /> Add user · preview
           </button>
         }
       />
+
+      <div className="notice admin-notice" style={{ marginBottom: 20 }}>
+        <Shield size={14} />
+        <span>
+          Account controls are visual previews. Creating, deactivating, or removing users requires authenticated, role-based backend authorization (NFR-8). Hiding a control is not authorization.
+        </span>
+      </div>
 
       {notice && (
         <div className="admin-toast">
@@ -202,17 +173,17 @@ function UserManagement() {
                   <div className="admin-row-actions">
                     <button
                       className="icon-button"
-                      title={user.status === 'Active' ? 'Deactivate' : 'Activate'}
-                      onClick={() => handleToggleStatus(user.id)}
-                      aria-label={user.status === 'Active' ? `Deactivate ${user.name}` : `Activate ${user.name}`}
+                      title="Deactivate (preview only — requires authorized backend)"
+                      onClick={() => toast('Account changes are previews. An authorized backend is required (NFR-8).')}
+                      aria-label={`Deactivate ${user.name} (preview only)`}
                     >
-                      {user.status === 'Active' ? <Lock size={14} /> : <Unlock size={14} />}
+                      <Lock size={14} />
                     </button>
                     <button
                       className="icon-button admin-delete-btn"
-                      title="Remove user"
-                      onClick={() => setModal({ type: 'confirm', user })}
-                      aria-label={`Remove ${user.name}`}
+                      title="Remove user (preview only — requires authorized backend)"
+                      onClick={() => toast('Account removal is a preview. An authorized backend is required (NFR-8).')}
+                      aria-label={`Remove ${user.name} (preview only)`}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -235,77 +206,10 @@ function UserManagement() {
         </table>
       </div>
 
-      {/* Add user modal */}
-      {modal?.type === 'add' && (
-        <div className="admin-modal-backdrop" onClick={() => setModal(null)}>
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add user">
-            <div className="admin-modal-header">
-              <h3>Add user</h3>
-              <button className="icon-button" onClick={() => setModal(null)} aria-label="Close"><X size={18} /></button>
-            </div>
-            <p className="admin-modal-sub">New accounts use synthetic credentials only. No real patient data.</p>
-            <label className="admin-form-label">Full name
-              <input
-                className="admin-input"
-                value={formData.name}
-                onChange={(e) => setFormData((f) => ({ ...f, name: e.target.value }))}
-                placeholder="e.g. Jordan Lee"
-              />
-            </label>
-            <label className="admin-form-label">Email (demo address)
-              <input
-                className="admin-input"
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))}
-                placeholder="e.g. j.lee@westbrook.demo"
-              />
-            </label>
-            <label className="admin-form-label">Role
-              <select
-                className="admin-input"
-                value={formData.role}
-                onChange={(e) => setFormData((f) => ({ ...f, role: e.target.value }))}
-              >
-                <option>Nurse</option>
-                <option>Charge nurse</option>
-                <option>System administrator</option>
-              </select>
-            </label>
-            <div className="admin-modal-footer">
-              <button className="secondary-button" onClick={() => setModal(null)}>Cancel</button>
-              <button
-                className="primary-button"
-                onClick={handleAdd}
-                disabled={!formData.name.trim() || !formData.email.trim()}
-              >
-                Add user
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirm delete modal */}
-      {modal?.type === 'confirm' && (
-        <div className="admin-modal-backdrop" onClick={() => setModal(null)}>
-          <div className="admin-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Confirm removal">
-            <div className="admin-modal-header">
-              <h3>Remove user?</h3>
-              <button className="icon-button" onClick={() => setModal(null)} aria-label="Close"><X size={18} /></button>
-            </div>
-            <p className="admin-modal-sub">
-              <strong>{modal.user.name}</strong> will be removed from the system. This action cannot be undone in this prototype.
-            </p>
-            <div className="admin-modal-footer">
-              <button className="secondary-button" onClick={() => setModal(null)}>Cancel</button>
-              <button className="primary-button admin-danger-btn" onClick={() => handleDelete(modal.user.id)}>
-                Remove
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <div className="admin-table-footer">
+        <span>{filtered.length} of {users.length} account{users.length !== 1 ? 's' : ''}</span>
+        <span><Shield size={12} /> Role-based access enforced by backend (not connected)</span>
+      </div>
     </div>
   );
 }
@@ -442,23 +346,14 @@ function PatientDataManagement() {
 }
 
 function PolicyManagement() {
-  const [policies, setPolicies] = useState(initialPolicies);
   const [search, setSearch] = useState('');
   const [notice, setNotice] = useState(null);
+
+  const policies = initialPolicies;
 
   function toast(msg) {
     setNotice(msg);
     setTimeout(() => setNotice(null), 3500);
-  }
-
-  function toggleStatus(id) {
-    setPolicies((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, status: p.status === 'Active' ? 'Inactive' : 'Active' } : p
-      )
-    );
-    const pol = policies.find((p) => p.id === id);
-    toast(`"${pol.title}" ${pol.status === 'Active' ? 'deactivated' : 'activated'}.`);
   }
 
   const filtered = policies.filter((p) =>
@@ -474,8 +369,8 @@ function PolicyManagement() {
         title="Facility policy documents"
         subtitle="Documents ingested into the Bedrock Knowledge Base. Update policies here without changing application code (NFR-26)."
         action={
-          <button className="primary-button admin-add-btn" onClick={() => toast('Document upload is a placeholder. Connect an S3 bucket to enable ingestion.')}>
-            <Upload size={15} /> Upload document
+          <button className="primary-button admin-add-btn" disabled title="Preview only — connect an S3 bucket and authorized backend">
+            <Upload size={15} /> Upload document · preview
           </button>
         }
       />
@@ -547,25 +442,25 @@ function PolicyManagement() {
                   <div className="admin-row-actions">
                     <button
                       className="icon-button"
-                      title={pol.status === 'Active' ? 'Deactivate from Knowledge Base' : 'Activate in Knowledge Base'}
-                      onClick={() => toggleStatus(pol.id)}
-                      aria-label={pol.status === 'Active' ? `Deactivate ${pol.title}` : `Activate ${pol.title}`}
+                      title={pol.status === 'Active' ? 'Deactivate from Knowledge Base (preview only)' : 'Activate in Knowledge Base (preview only)'}
+                      onClick={() => toast('Knowledge Base changes are previews. Connect Bedrock and an authorized backend to enable (NFR-26).')}
+                      aria-label={pol.status === 'Active' ? `Deactivate ${pol.title} (preview only)` : `Activate ${pol.title} (preview only)`}
                     >
                       {pol.status === 'Active' ? <EyeOff size={14} /> : <Eye size={14} />}
                     </button>
                     <button
                       className="icon-button"
-                      title="Re-sync to Knowledge Base (preview)"
-                      onClick={() => toast(`Re-sync for "${pol.title}" is a placeholder. Connect Bedrock to enable.`)}
-                      aria-label={`Sync ${pol.title}`}
+                      title="Re-sync to Knowledge Base (preview only)"
+                      onClick={() => toast(`Re-sync for "${pol.title}" is a preview. Connect Bedrock to enable.`)}
+                      aria-label={`Sync ${pol.title} (preview only)`}
                     >
                       <RefreshCw size={14} />
                     </button>
                     <button
                       className="icon-button admin-delete-btn"
-                      title="Delete document (preview)"
-                      onClick={() => toast(`Delete is a placeholder in this prototype.`)}
-                      aria-label={`Delete ${pol.title}`}
+                      title="Delete document (preview only)"
+                      onClick={() => toast(`Delete is a preview in this prototype.`)}
+                      aria-label={`Delete ${pol.title} (preview only)`}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -597,26 +492,14 @@ function PolicyManagement() {
 }
 
 function IncidentConfig() {
-  const [types, setTypes] = useState(incidentTypes);
   const [newLabel, setNewLabel] = useState('');
   const [notice, setNotice] = useState(null);
 
+  const types = incidentTypes;
+
   function toast(msg) {
     setNotice(msg);
-    setTimeout(() => setNotice(null), 3000);
-  }
-
-  function toggleType(id) {
-    setTypes((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, active: !t.active } : t))
-    );
-  }
-
-  function addType() {
-    if (!newLabel.trim()) return;
-    setTypes((prev) => [...prev, { id: `IT-${Date.now()}`, label: newLabel.trim(), active: true }]);
-    toast(`"${newLabel.trim()}" added to incident types.`);
-    setNewLabel('');
+    setTimeout(() => setNotice(null), 3500);
   }
 
   return (
@@ -624,8 +507,15 @@ function IncidentConfig() {
       <SectionHeading
         icon={Activity}
         title="Incident configuration"
-        subtitle="Define the crisis types available to charge nurses when activating an incident (FR-6)."
+        subtitle="Crisis types available to charge nurses when activating an incident (FR-6)."
       />
+
+      <div className="notice admin-notice" style={{ marginBottom: 20 }}>
+        <Shield size={14} />
+        <span>
+          Incident type configuration is a visual preview. Changes require an authorized backend with role-based access (NFR-8).
+        </span>
+      </div>
 
       {notice && (
         <div className="admin-toast">
@@ -640,9 +530,9 @@ function IncidentConfig() {
             <span>{t.label}</span>
             <button
               className="icon-button admin-chip-toggle"
-              onClick={() => toggleType(t.id)}
-              aria-label={t.active ? `Disable ${t.label}` : `Enable ${t.label}`}
-              title={t.active ? 'Disable' : 'Enable'}
+              onClick={() => toast('Incident type changes are previews. An authorized backend is required (NFR-8).')}
+              aria-label={t.active ? `Disable ${t.label} (preview only)` : `Enable ${t.label} (preview only)`}
+              title={t.active ? 'Disable (preview only)' : 'Enable (preview only)'}
             >
               {t.active ? <CheckCheck size={13} /> : <Plus size={13} />}
             </button>
@@ -653,18 +543,17 @@ function IncidentConfig() {
       <div className="admin-add-type-row">
         <input
           className="admin-input"
-          placeholder="New incident type label…"
+          placeholder="New incident type label… (preview)"
           value={newLabel}
           onChange={(e) => setNewLabel(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && addType()}
-          aria-label="New incident type"
+          aria-label="New incident type (preview only)"
         />
         <button
           className="primary-button"
-          onClick={addType}
-          disabled={!newLabel.trim()}
+          disabled
+          title="Preview only — requires an authorized backend"
         >
-          <Plus size={15} /> Add type
+          <Plus size={15} /> Add type · preview
         </button>
       </div>
 
@@ -717,7 +606,7 @@ function SystemOverview() {
       <SectionHeading
         icon={Settings}
         title="System overview"
-        subtitle="A read-only snapshot of the demo environment. No real AWS services are connected."
+        subtitle="A read-only snapshot of the demo environment. No AWS services are connected; the services below are proposals, not final choices."
       />
 
       <div className="admin-overview-grid">
@@ -732,6 +621,7 @@ function SystemOverview() {
 
       <div className="admin-service-table">
         <h3>Proposed AWS service status</h3>
+        <p className="admin-service-note">Only Amazon Bedrock, a Bedrock Knowledge Base, and Bedrock Guardrails are specified in the requirements. The rest are proposals to validate during implementation.</p>
         <table className="admin-table" style={{ marginTop: 12 }}>
           <thead>
             <tr>
