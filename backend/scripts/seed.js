@@ -10,8 +10,13 @@
 // Usage (with DynamoDB Local running on :8000 and the table created):
 //   node scripts/seed.js
 //
+// Deployed table (explicit opt-in; uses your AWS credentials and region):
+//   AWS_REGION=us-east-1 TABLE_NAME=CareBridge-dev node scripts/seed.js --aws
+// Incident items are overwritten, so run --aws once on a fresh table; rerunning
+// resets the demo incident and discards later updates, tasks, and audit items.
+//
 // Env:
-//   DYNAMODB_ENDPOINT (default http://127.0.0.1:8000)
+//   DYNAMODB_ENDPOINT (default http://127.0.0.1:8000; ignored with --aws)
 //   TABLE_NAME        (default CareBridge-dev)
 
 import { pathToFileURL, fileURLToPath } from 'node:url';
@@ -21,15 +26,18 @@ import { DynamoDBDocumentClient, BatchWriteCommand, PutCommand } from '@aws-sdk/
 import { buildSeedItems } from './lib/seed-items.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const USE_AWS = process.argv.includes('--aws');
 const ENDPOINT = process.env.DYNAMODB_ENDPOINT || 'http://127.0.0.1:8000';
 const TABLE_NAME = process.env.TABLE_NAME || 'CareBridge-dev';
 
 const ddb = DynamoDBDocumentClient.from(
-  new DynamoDBClient({
-    endpoint: ENDPOINT,
-    region: process.env.AWS_REGION || 'us-east-1',
-    credentials: { accessKeyId: 'local', secretAccessKey: 'local' },
-  }),
+  new DynamoDBClient(USE_AWS
+    ? { region: process.env.AWS_REGION || 'us-east-1' }
+    : {
+      endpoint: ENDPOINT,
+      region: process.env.AWS_REGION || 'us-east-1',
+      credentials: { accessKeyId: 'local', secretAccessKey: 'local' },
+    }),
   { marshallOptions: { removeUndefinedValues: true } },
 );
 
