@@ -45,7 +45,7 @@ export async function answerPolicyQuestion(question) {
       retrievalConfiguration: { vectorSearchConfiguration: { numberOfResults: MAX_PASSAGES } },
     }));
   } catch (err) {
-    throw new BedrockError('service_error', `${err?.name || 'Error'}: ${String(err?.message ?? '').slice(0, 200)}`);
+    throw new BedrockError('service_error', `${err?.name || 'Error'}: ${String(err?.message ?? '').slice(0, 400)}`);
   }
 
   const passages = (retrieved.retrievalResults || [])

@@ -392,7 +392,13 @@ Resources:
                 - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
             - Effect: Allow
               Action: bedrock:ApplyGuardrail
-              Resource: !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:guardrail/${GuardrailId}'
+              # Scoped to this guardrail id in this account. Region and version
+              # are wildcards because a cross-region inference profile applies
+              # the guardrail where the request is routed, and versioned
+              # guardrail ARNs carry a suffix.
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:guardrail/${GuardrailId}'
+                - !Sub 'arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:guardrail/${GuardrailId}:*'
       Events:
         CreateUpdate:
           Type: Api
@@ -435,7 +441,13 @@ Resources:
                 - !Sub 'arn:${AWS::Partition}:bedrock:*::foundation-model/*'
             - Effect: Allow
               Action: bedrock:ApplyGuardrail
-              Resource: !Sub 'arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:guardrail/${GuardrailId}'
+              # Scoped to this guardrail id in this account. Region and version
+              # are wildcards because a cross-region inference profile applies
+              # the guardrail where the request is routed, and versioned
+              # guardrail ARNs carry a suffix.
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:guardrail/${GuardrailId}'
+                - !Sub 'arn:${AWS::Partition}:bedrock:*:${AWS::AccountId}:guardrail/${GuardrailId}:*'
       Events:
         AskPolicy:
           Type: Api
