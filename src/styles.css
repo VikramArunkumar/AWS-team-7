@@ -111,3 +111,76 @@
 .admin-app-heading p{color:#76877c;font-size:12px}
 @media(max-width:850px){.admin-app-topbar{padding:0 20px;height:auto;min-height:65px;padding-top:12px;padding-bottom:12px}.admin-app-banner{margin:16px 20px 0}.admin-app-main{padding:0 20px 0}.admin-app-heading h1{font-size:24px}}
 @media(max-width:680px){.admin-app-topbar{padding:14px 16px}.admin-app-console-tag{margin-left:8px}.admin-app-topbar-right{gap:12px}.admin-app-switch{font-size:9px}.admin-app-banner{margin:14px 16px 0;padding:14px}.admin-app-main{padding:0 16px 0}.admin-app-heading{padding:22px 0}.admin-app-heading h1{font-size:23px}}
+/* Role switcher (charge nurse / nurse) and nurse-facing dashboard. */
+.role-toggle{display:inline-flex;border:1px solid var(--border);border-radius:7px;background:#f7faf8;padding:3px}.role-toggle button{font-size:10px;font-weight:500;padding:6px 11px;border-radius:5px;color:#7d8a81;background:transparent;white-space:nowrap}.role-toggle button:hover{color:var(--teal)}.role-toggle button.active{background:#fff;color:#216750;font-weight:600;box-shadow:0 1px 2px #273a2b14}
+.nurse-task-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:18px}.nurse-task-grid.full{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}.nurse-task{padding:18px;box-shadow:none;display:flex;flex-direction:column}.nurse-task.done{background:#fbfdfb;border-color:#e3ebe4}.nurse-task.done h3{color:#8ba08f}.nurse-task-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:13px}.nurse-task h3{font-size:13px;font-weight:650;line-height:1.5;letter-spacing:-.2px}.nurse-task>.muted{font-size:10px;margin:7px 0 0}.nurse-task-meta{display:flex;align-items:center;gap:8px;font-size:10px;color:#7e8c82;margin:14px 0 16px;flex-wrap:wrap}.nurse-task-meta strong{font-variant-numeric:tabular-nums}.nurse-task-meta .muted{font-size:9px;width:100%}.nurse-task-actions{margin-top:auto;display:flex;align-items:center;gap:9px;flex-wrap:wrap}.nurse-task-actions .primary-button,.nurse-task-actions .secondary-button{font-size:10px;padding:8px 11px;min-height:32px}.nurse-task-actions .text-button{font-size:10px;margin-left:2px}
+.submit-panel{max-width:720px}.update-form{padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:16px}.update-form label{display:flex;flex-direction:column;gap:7px;font-size:11px;font-weight:500;color:#5c6b61}.update-form .full-width{grid-column:1 / -1}.update-form select,.update-form textarea{border:1px solid #dfe7e1;color:#46594b;border-radius:6px;background:#fff;padding:10px;font-size:11px;font-family:inherit;width:100%}.update-form textarea{resize:vertical;line-height:1.7}.update-form select:focus,.update-form textarea:focus{outline:0;border-color:#7ba18a;box-shadow:0 0 0 2px #ddece2}.checkbox-row{grid-column:1 / -1;flex-direction:row!important;align-items:center;gap:9px!important;font-weight:400!important;color:#6a7a6f}.checkbox-row input{width:15px;height:15px;accent-color:var(--teal)}.form-actions{grid-column:1 / -1;display:flex;align-items:center;gap:14px;flex-wrap:wrap}.form-actions .muted{display:flex;align-items:center;gap:5px}.submit-panel .notice{margin:0 20px 22px}
+@media(max-width:1080px){.nurse-task-grid{grid-template-columns:1fr}}
+@media(max-width:680px){.role-toggle button{padding:6px 8px;font-size:9px}.nurse-task-grid,.nurse-task-grid.full{grid-template-columns:1fr;padding:15px}.update-form{grid-template-columns:1fr;padding:16px}.submit-panel .notice{margin:0 16px 18px}}
+/* Nurse view: attention banner, task confirmation, responsive continuity grid. */
+.attention-banner{display:flex;align-items:center;gap:14px;border:1px solid #e9ddc5;background:#fffaf0;border-radius:9px;padding:16px 18px;margin-bottom:20px;color:#a07d45}.attention-banner>svg{flex-shrink:0;color:#c0923f}.attention-text{display:flex;flex-direction:column;gap:5px}.attention-text strong{font-size:12px;color:#8c6f3f}.attention-text span{font-size:11px;color:#a89267}.attention-actions{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap}.attention-actions .secondary-button{font-size:10px;padding:8px 11px;min-height:32px;border-color:#e7d6b4;background:#fffdf8;color:#8c6f3f}.attention-actions .secondary-button:hover{background:#fff7e9;border-color:#d9c196}
+.task-confirm{display:flex;align-items:center;gap:6px;margin:12px 0 0;padding-top:12px;border-top:1px solid #eaf1ea;font-size:10px;color:#5f9173}.task-confirm svg{color:#6ba085}
+@media(max-width:560px){.attention-banner{flex-wrap:wrap}.attention-actions{margin-left:0;width:100%}.attention-actions .secondary-button{flex:1}.dialog-content .detail-grid{grid-template-columns:1fr;gap:10px}.dialog-content .detail-grid dd{text-align:left;margin-top:-4px;color:#4a5e51;font-weight:500}}
+
+/* ── Auth + role routing (frontend-only demo). Reuses existing theme tokens. ── */
+.login-screen{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:28px 18px;background:radial-gradient(1100px 560px at 50% -8%,#eaf3ee,#f6f8f7 62%)}
+.login-card{width:min(430px,100%);padding:38px 34px 30px;box-shadow:0 24px 70px #16302412}
+.login-brand{padding:0 0 22px;font-size:24px}
+.login-eyebrow{font-size:9px;letter-spacing:1.45px}
+.login-title{font-size:27px;line-height:1.3;letter-spacing:-.8px;font-weight:750;margin:12px 0 8px}
+.login-lead{font-size:12px;line-height:1.7;color:#7d8d81;margin-bottom:24px}
+.login-form{display:flex;flex-direction:column}
+.login-label{font-size:11px;font-weight:600;color:#47594e;margin-bottom:7px}
+.login-input{display:flex;align-items:center;gap:9px;border:1px solid #e1e7e2;background:#fbfdfc;border-radius:7px;padding:0 11px;margin-bottom:16px;color:#8e9c92}
+.login-input:focus-within{border-color:#7ba18a;box-shadow:0 0 0 2px #ddece2}
+.login-input input{border:0;outline:0;background:transparent;width:100%;min-width:0;font-size:12px;color:#46594b;padding:11px 0}
+.login-input input::placeholder{color:#a1aba4}
+.login-error{font-size:11px;color:var(--red);margin:0 0 14px;line-height:1.6}
+.login-submit{width:100%;padding:12px;font-size:12px;margin-top:2px}
+.login-divider{display:flex;align-items:center;gap:12px;margin:26px 0 18px;color:#99a79c;font-size:9px;letter-spacing:.6px;text-transform:uppercase}
+.login-divider:before,.login-divider:after{content:'';flex:1;height:1px;background:var(--border)}
+.login-accounts{display:flex;flex-direction:column;gap:9px}
+.login-account{display:flex;align-items:center;gap:11px;width:100%;text-align:left;border:1px solid var(--border);background:#fff;border-radius:8px;padding:11px 12px}
+.login-account:hover{border-color:#b8cfc1;background:#fafcfb}
+.login-account .avatar{width:34px;height:34px;font-size:10px;flex-shrink:0}
+.login-account-text{flex:1;min-width:0}
+.login-account-text strong{display:block;font-size:11px;color:#46564b}
+.login-account-text small{display:block;font-size:10px;color:#93a095;margin-top:3px}
+.login-note{display:flex;align-items:flex-start;gap:7px;font-size:10px;line-height:1.7;color:#8b988d;margin-top:22px;padding-top:18px;border-top:1px solid var(--border)}
+.login-note svg{flex-shrink:0;margin-top:2px;color:#8aa796}
+
+/* Session bar overlays the role app's own fixed chrome without disturbing it. */
+.session-bar{position:fixed;top:0;right:0;z-index:40;display:flex;align-items:center;gap:13px;height:73px;padding:0 20px 0 26px;background:#fff;border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-bottom-left-radius:12px;box-shadow:0 6px 24px #16302410}
+.session-role{display:flex;align-items:center}
+.session-user{display:flex;flex-direction:column;line-height:1.3}
+.session-user strong{font-size:11px;color:#46564b}
+.session-user small{font-size:9px;color:var(--muted);margin-top:3px}
+.session-signout{padding:8px 11px;min-height:34px;font-size:11px}
+.role-placeholder{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:40px 18px;background:#f6f8f7}
+.role-placeholder-card{width:min(520px,100%);padding:44px 40px;text-align:center}
+.role-placeholder-icon{display:inline-grid;place-items:center;width:58px;height:58px;border-radius:14px;background:#eef3ef;color:#6c8276;margin-bottom:18px}
+.role-placeholder h1{font-size:25px;letter-spacing:-.6px;margin-bottom:10px}
+.role-placeholder p{font-size:12px;line-height:1.8;color:#7d8d81;margin-bottom:8px}
+.role-placeholder .notice{text-align:left}
+@media(max-width:680px){.session-bar{height:62px;gap:9px;padding:0 14px 0 16px;border-radius:0}.session-user small{display:none}.session-signout span{display:none}.session-signout{padding:8px}.login-card{padding:30px 22px 26px}.login-title{font-size:24px}}
+
+/* Inside the role-routing shell, keep the charge dashboard's own topbar controls
+   clear of the fixed session bar at the top-right. Standalone dashboard unaffected. */
+.shell-root .topbar{padding-right:300px}
+@media(max-width:850px){.shell-root .topbar{padding-right:240px}}
+@media(max-width:680px){.shell-root .topbar{padding-right:150px}}
+
+/* ── Policy assistant answer + citations (frontend-only demo). Reuses theme. ── */
+.policy-answer{margin-top:26px;border-top:1px solid var(--border);padding-top:24px}
+.policy-answer>.eyebrow{font-size:8px;letter-spacing:1px;color:#7f9a86;margin-bottom:16px}
+.policy-result{border:1px solid #e4ece6;background:#fbfdfb;border-radius:9px;padding:19px 18px;margin-bottom:13px}
+.policy-result h3{font-size:13px;font-weight:650;color:#3f5a4a;margin-bottom:9px}
+.policy-result p{font-size:12px;line-height:1.85;color:#6d7e73}
+.policy-citation{display:flex;align-items:flex-start;gap:9px;margin-top:14px;padding-top:13px;border-top:1px solid #e9efe9;color:#5a826b}
+.policy-citation svg{flex-shrink:0;margin-top:2px}
+.policy-citation strong{display:block;font-size:11px;color:#4c6555}
+.policy-citation small{display:block;font-size:10px;color:#8a9a8e;margin-top:4px}
+.policy-disclaimer{display:flex;align-items:flex-start;gap:7px;font-size:10px;line-height:1.7;color:#8b988d;margin-top:16px}
+.policy-disclaimer svg{flex-shrink:0;margin-top:2px;color:#8aa796}
+.policy-hint{display:flex;align-items:center;gap:8px;margin-top:22px;padding:13px 15px;border:1px dashed #d8e2da;border-radius:7px;font-size:11px;color:#7d8d81;background:#fafcfb}
+.policy-hint svg{flex-shrink:0;color:#8aa796}

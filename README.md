@@ -6,21 +6,32 @@ CareBridge assumes electricity and basic internet connectivity remain available.
 
 ## Project status
 
-This repository contains two **local visual prototypes**, built with React and Vite, alongside the [CareBridge requirements](docs/CareBridge_Requirements.md): a charge nurse dashboard and a separate system administrator console. Each is a distinct Vite entry point (`index.html` and `admin.html`), so the administrator feature surface is never rendered inside a charge nurse session (FR-3, NFR-8). Both prototypes use synthetic fixtures and a calm, light interface with teal accents. They are not the operational MVP: backend services, authentication, shared persistence, AWS infrastructure, and live AI integrations are not implemented. The broader features and AWS architecture below remain planned unless explicitly listed here.
+This repository contains a **local visual prototype**, built with React and Vite, alongside the [CareBridge requirements](docs/CareBridge_Requirements.md). A client-side demo sign-in routes each role to its view: a charge nurse dashboard and a nurse view in the main app (`index.html`), plus a separate system administrator console (`admin.html`). It is not the operational MVP: backend services, backend authentication and enforcement, shared persistence, AWS infrastructure, and live AI integrations are not implemented. The frontend sign-in and role routing are a client-side demo, not real authentication.
 
-The charge nurse sample includes:
+The charge nurse view includes:
 
 - An overview with an active incident timer, priority counts, patient table, urgent nurse updates, supply concern, and staffing summary.
 - Patient search by name, identifier, room, concern, or nurse; priority and verification filters; nurse filtering; and priority, name, or room sorting.
 - Patient details linked to original synthetic nurse updates, plus task details and status filtering and sorting.
-- Care team, illustrative AI review, policy-unavailable, and crisis handoff preview screens.
+- Care team, illustrative AI review, a policy assistant answering from synthetic policies, and crisis handoff preview screens.
 - Responsive navigation and layouts, keyboard-accessible controls, and native modal dialogs.
 
-The separate administrator console (`admin.html`) adds a system overview, user management, synthetic patient-data management, facility policy documents, and incident configuration. It is shown under a labelled "Demo Admin (fixture)" profile rather than the charge nurse persona. Every create, edit, delete, activate, and deactivate control is disabled or wired to a preview notice, each panel repeats that role-based access must be enforced by an authorized backend, and all proposed AWS services are listed as "Not connected."
+On the charge nurse view, task assignment and recommendation decisions are intentionally disabled previews. The policy assistant is an interactive demo that answers from synthetic policies (see below). No clinical action, assignment, escalation, message, incident closure, or administrative change occurs.
 
-Task assignment, recommendation decisions, and policy questions are intentionally disabled previews. No clinical action, assignment, escalation, message, incident closure, or administrative change occurs. The displayed charge nurse and administrator are fictional demo personas, not authenticated sessions. There is no authentication, role gating, data-entry, or persistence path: the two apps are split by entry point for structural separation, which is not an access-control claim. Do not connect real patient data to either prototype.
+The nurse view (scoped to one fictional nurse) includes:
 
-These screens explore FR-6, FR-7, FR-11, FR-22–FR-24, FR-29–FR-33, FR-37, FR-39, and FR-43 visually, and touch the administrator responsibilities in the users table; they do not satisfy the complete backend, authorization, audit, or AWS requirements. The administrator console and charge nurse dashboard are separated by entry point only; because there is no authentication yet, enforced per-role access remains a deliberate, documented gap pending the auth and backend work.
+- A shift overview of that nurse's patients, assigned tasks, and recent updates, led by an attention banner when the nurse has overdue tasks or high-priority patients.
+- The patients assigned to that nurse, with the same priority and verification-freshness indicators.
+- A patient detail showing the continuity profile, that patient's recent updates (seed and session), and the nurse's open tasks for the patient.
+- The nurse's tasks, where status can be set to completed, delayed, or unable to complete, with inline confirmation and undo. Status changes are held in browser session state only.
+- A structured-plus-free-text update form with a category and an urgent flag; a submitted update is recorded in browser session state with the nurse's name and a timestamp, preserving the original text.
+- Responsive layouts, keyboard-accessible controls, and a screen-reader status announcement when a task status changes.
+
+The separate administrator console (`admin.html`) adds a system overview, user management, synthetic patient-data management, facility policy documents, and incident configuration. Its mutating controls are preview-only and require an authorized backend.
+
+All views use fictional demo personas, not authenticated sessions. The nurse update path writes only to in-memory React state that resets on reload; do not connect real patient data to this prototype.
+
+These screens explore FR-6, FR-7, FR-9–FR-11, FR-13–FR-17, FR-22–FR-24, FR-29–FR-33, FR-37–FR-39, and FR-43 visually, and touch administrator responsibilities in the users table; they do not satisfy the complete backend, authorization, persistence, audit, or AWS requirements.
 
 The project targets an 18-hour hackathon build using **synthetic patient data only**. It is a demonstration, with no claim of production readiness or regulatory certification.
 
@@ -135,20 +146,32 @@ npm run build    # Create the production frontend in dist/
 npm run preview  # Serve that build locally (normally port 4173)
 ```
 
-`npm install`, `npm run dev`, and `npm run build` were previously verified with Node 22.16.0 and npm 10.9.2. The two-entry-point production build (`vite build`, 1570 modules) was verified passing with Vite 8.3.5, emitting both `dist/index.html` and `dist/admin.html` with separate `main` and `admin` JavaScript bundles. `npm run preview` is configured but was not separately exercised; the dev server's HTTP 200 check predates the admin split and was not re-run. The dependency lockfile is included with the source so subsequent installs can use `npm ci`.
+`npm install`, `npm run dev`, and `npm run build` were verified with Node 22.16.0 and npm 10.9.2; the production build was re-verified after the nurse view, auth/role routing, policy assistant, and admin console were added, and passed.
 
 ### Frontend structure and demo behavior
 
-- `src/main.jsx`: charge nurse React screens, search/filter state, and read-only detail dialogs.
-- `src/admin/main.jsx`, `src/admin/AdminApp.jsx`, `src/admin/AdminDashboard.jsx`: the separate administrator console — its own entry component, top bar, and the five admin panels (overview, users, patients, policies, incidents). All management controls are disabled or preview-only.
-- `src/data.js`: synthetic patients, nurses, updates, tasks, incident, and authored AI examples, shared by both apps. Source updates and recommendations are separate records linked by identifiers.
-- `src/styles.css`: light/teal styling and responsive layouts for both apps. DM Sans and Manrope load from Google Fonts when reachable, with local sans-serif fallbacks.
-- `index.html` / `admin.html`: the two Vite entry points (charge nurse and administrator). No credentials or AWS settings are needed.
+- `src/entry.jsx`, `src/AppShell.jsx`, `src/Login.jsx`, `src/auth.js`: the client-side demo sign-in and role routing for the main app. After login, charge nurse → `App`, nurse → `NurseView`.
+- `src/main.jsx`: the charge nurse view (`App`), the nurse view (`NurseView`), a role toggle, search/filter state, and detail dialogs. Charge dialogs are read-only; the nurse view adds session-only update and task-status actions.
+- `src/PolicyAssistant.jsx`, `src/policies.js`: the policy assistant and its synthetic policy fixtures.
+- `src/admin/main.jsx`, `src/admin/AdminApp.jsx`, `src/admin/AdminDashboard.jsx`: the separate administrator console — its own entry component, top bar, and five admin panels (overview, users, patients, policies, incidents).
+- `src/data.js`: synthetic patients, nurses, updates, tasks, incident, and authored AI examples, shared by the apps; plus the demo nurse identity and update categories used by the nurse view.
+- `src/styles.css`: light/teal styling and responsive layouts for all views. DM Sans and Manrope load from Google Fonts when reachable, with local sans-serif fallbacks.
+- `index.html` / `admin.html`: the two Vite entry points (main login-routed app and administrator console). No credentials or AWS settings are needed.
 - `vite.config.js`: declares both entry points as a multi-page build and binds the dev/preview servers to loopback.
 
-All records are read-only, in-memory fixtures. The sample clock anchors on each page load. Incident duration and overdue/freshness calculations use timestamps, refresh every 30 seconds, and do not depend on the viewer's locale. Displayed times use `America/Los_Angeles` (Pacific time). Information is flagged as unverified if it has no verification timestamp or was last verified more than **60 minutes** ago; this is a prototype choice, not a requirement or facility policy.
+The seed fixtures are read-only. The sample clock anchors on each page load. Incident duration and overdue/freshness calculations use timestamps, refresh every 30 seconds, and do not depend on the viewer's locale. Displayed times use `America/Los_Angeles` (Pacific time). Information is flagged as unverified if it has no verification timestamp or was last verified more than **60 minutes** ago; this is a prototype choice, not a requirement or facility policy.
 
-The eight displayed patients are a subset of a fictional staffing plan. AI text is authored sample content, not generated by Bedrock. One update demonstrates an AI-failure presentation while retaining its original source text; no actual save or AI request occurs. The policy screen explicitly reports that no policy source is connected and produces no answer or citation. Handoff is a read-only view, not an export or incident closure.
+The eight displayed patients are a subset of a fictional staffing plan. AI text is authored sample content, not generated by Bedrock. One update demonstrates an AI-failure presentation while retaining its original source text; no actual save or AI request occurs. The policy assistant answers questions by matching keywords against synthetic, in-browser policy fixtures and cites the matched fixture document; unmatched questions produce an explicit no-evidence response. It performs no AI reasoning and no retrieval, and does not use a Bedrock Knowledge Base or any backend. Handoff is a read-only view, not an export or incident closure.
+
+The nurse view adds the only interactive data paths in the prototype, and both write to in-memory React state that resets on reload: task status changes (completed, delayed, unable to complete) and submitted updates. Changed task cards show an inline confirmation and an undo, and status changes are announced through an `aria-live` region. The attention banner on the shift overview is derived from the same session state. A submitted update keeps the nurse author, patient, timestamp, and original text, and corrections retain every prior version; none of it is persisted to shared storage, processed by AI, or delivered to the charge nurse view. The role toggle swaps the rendered view only and carries no authorization.
+
+### Policy assistant: demo vs. intended design
+
+The current policy assistant is a frontend-only demonstration. A nurse's question is matched by simple keyword lookup against five synthetic policy fixtures in `src/policies.js`, and the matched fixture is shown with a citation to its (fictional) document reference. There is no AI, no semantic understanding, and no network call; questions that do not hit a known keyword return an explicit no-evidence response rather than a guess.
+
+The intended design (FR-27) replaces the local lookup with a backend call to an Amazon Bedrock Knowledge Base built over real facility policy documents (for example, stored in S3). The frontend contract is unchanged — a question in, a cited answer or no-evidence response out — so the integration point is the single `findPolicies` call in `src/PolicyAssistant.jsx`.
+
+Known demo limitations: policy content is editable only by changing `src/policies.js` (code), so it does not yet satisfy the "updateable without application code changes" goal; and matching is keyword-based, so rephrased questions may not match. These are demo constraints, not the intended production behavior.
 
 ### Verification
 
