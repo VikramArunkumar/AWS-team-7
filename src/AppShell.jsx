@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { LogOut, Construction, UserRound } from 'lucide-react';
+import { LogOut, UserRound } from 'lucide-react';
 import { getCurrentUser, signOut } from './auth.js';
 import Login from './Login.jsx';
 import { App as ChargeNurseApp, NurseView } from './main.jsx';
+import AdminApp from './admin/AdminApp.jsx';
 
 // CareBridge role routing shell — FRONTEND ONLY, NO BACKEND.
 //
@@ -32,21 +33,6 @@ function SessionBar({ user, onSignOut }) {
   );
 }
 
-function ComingSoon({ title, description }) {
-  return (
-    <div className="role-placeholder">
-      <div className="panel role-placeholder-card">
-        <span className="role-placeholder-icon"><Construction size={28} /></span>
-        <h1>{title}</h1>
-        <p>{description}</p>
-        <div className="notice">
-          This area is reserved for a teammate's frontend. Role routing lands the right user here;
-          the screen itself is not integrated in this branch.
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // Map the signed-in session role to the view-prop role the charge/nurse
 // components expect ('charge' | 'nurse') for their in-view toggle.
@@ -75,12 +61,8 @@ export default function AppShell() {
 
   let roleApp;
   if (user.role === 'admin') {
-    roleApp = (
-      <ComingSoon
-        title="Administration"
-        description="Configure users, synthetic patient data, and facility policies. Built by the admin team; not yet integrated into role routing."
-      />
-    );
+    // Route the admin role through the login shell to the admin console UI.
+    roleApp = <AdminApp />;
   } else if (viewRole === 'nurse') {
     roleApp = <NurseView role={viewRole} setRole={setViewRole} />;
   } else {
