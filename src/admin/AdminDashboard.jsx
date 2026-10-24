@@ -5,7 +5,7 @@ import {
   Trash2, Upload, UserCog, Users, X, Eye, EyeOff,
   Database, RefreshCw, AlertCircle, Lock, Edit3
 } from 'lucide-react';
-import { incident, nurses, patients, updates, tasks } from './data.js';
+import { incident, nurses, patients, updates, tasks } from '../data.js';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 function Badge({ children, tone = 'neutral' }) {

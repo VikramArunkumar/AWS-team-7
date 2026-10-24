@@ -6,9 +6,9 @@ CareBridge assumes electricity and basic internet connectivity remain available.
 
 ## Project status
 
-This repository contains a **local charge nurse visual prototype**, built with React and Vite, alongside the [CareBridge requirements](docs/CareBridge_Requirements.md). The prototype uses synthetic fixtures and a calm, light interface with teal accents. It is not the operational MVP: backend services, authentication, shared persistence, AWS infrastructure, and live AI integrations are not implemented. The broader features and AWS architecture below remain planned unless explicitly listed here.
+This repository contains two **local visual prototypes**, built with React and Vite, alongside the [CareBridge requirements](docs/CareBridge_Requirements.md): a charge nurse dashboard and a separate system administrator console. Each is a distinct Vite entry point (`index.html` and `admin.html`), so the administrator feature surface is never rendered inside a charge nurse session (FR-3, NFR-8). Both prototypes use synthetic fixtures and a calm, light interface with teal accents. They are not the operational MVP: backend services, authentication, shared persistence, AWS infrastructure, and live AI integrations are not implemented. The broader features and AWS architecture below remain planned unless explicitly listed here.
 
-The sample includes:
+The charge nurse sample includes:
 
 - An overview with an active incident timer, priority counts, patient table, urgent nurse updates, supply concern, and staffing summary.
 - Patient search by name, identifier, room, concern, or nurse; priority and verification filters; nurse filtering; and priority, name, or room sorting.
@@ -16,9 +16,11 @@ The sample includes:
 - Care team, illustrative AI review, policy-unavailable, and crisis handoff preview screens.
 - Responsive navigation and layouts, keyboard-accessible controls, and native modal dialogs.
 
-Task assignment, recommendation decisions, and policy questions are intentionally disabled previews. No clinical action, assignment, escalation, message, or incident closure occurs. The displayed charge nurse is a fictional demo persona, not an authenticated session. There is no data-entry or persistence path; do not connect real patient data to this prototype.
+The separate administrator console (`admin.html`) adds a system overview, user management, synthetic patient-data management, facility policy documents, and incident configuration. It is shown under a labelled "Demo Admin (fixture)" profile rather than the charge nurse persona. Every create, edit, delete, activate, and deactivate control is disabled or wired to a preview notice, each panel repeats that role-based access must be enforced by an authorized backend, and all proposed AWS services are listed as "Not connected."
 
-These screens explore FR-7, FR-11, FR-22–FR-24, FR-29–FR-33, FR-37, FR-39, and FR-43 visually; they do not satisfy the complete backend, authorization, audit, or AWS requirements.
+Task assignment, recommendation decisions, and policy questions are intentionally disabled previews. No clinical action, assignment, escalation, message, incident closure, or administrative change occurs. The displayed charge nurse and administrator are fictional demo personas, not authenticated sessions. There is no authentication, role gating, data-entry, or persistence path: the two apps are split by entry point for structural separation, which is not an access-control claim. Do not connect real patient data to either prototype.
+
+These screens explore FR-6, FR-7, FR-11, FR-22–FR-24, FR-29–FR-33, FR-37, FR-39, and FR-43 visually, and touch the administrator responsibilities in the users table; they do not satisfy the complete backend, authorization, audit, or AWS requirements. The administrator console and charge nurse dashboard are separated by entry point only; because there is no authentication yet, enforced per-role access remains a deliberate, documented gap pending the auth and backend work.
 
 The project targets an 18-hour hackathon build using **synthetic patient data only**. It is a demonstration, with no claim of production readiness or regulatory certification.
 
@@ -126,21 +128,23 @@ npm install
 npm run dev
 ```
 
-Open the Local URL printed by Vite (normally `http://127.0.0.1:5173`). The development server binds to loopback. Stop it with Ctrl+C.
+Open the Local URL printed by Vite (normally `http://127.0.0.1:5173`). That URL serves the charge nurse dashboard (`index.html`); open `/admin.html` at the same host and port for the separate administrator console. The development server binds to loopback. Stop it with Ctrl+C.
 
 ```sh
 npm run build    # Create the production frontend in dist/
 npm run preview  # Serve that build locally (normally port 4173)
 ```
 
-`npm install`, `npm run dev`, and `npm run build` were verified with Node 22.16.0 and npm 10.9.2. The production build passed; the dev server returned HTTP 200. `npm run preview` is configured but was not separately exercised. The dependency lockfile is included with the source so subsequent installs can use `npm ci`.
+`npm install`, `npm run dev`, and `npm run build` were previously verified with Node 22.16.0 and npm 10.9.2. The two-entry-point production build (`vite build`, 1570 modules) was verified passing with Vite 8.3.5, emitting both `dist/index.html` and `dist/admin.html` with separate `main` and `admin` JavaScript bundles. `npm run preview` is configured but was not separately exercised; the dev server's HTTP 200 check predates the admin split and was not re-run. The dependency lockfile is included with the source so subsequent installs can use `npm ci`.
 
 ### Frontend structure and demo behavior
 
-- `src/main.jsx`: React screens, search/filter state, and read-only detail dialogs.
-- `src/data.js`: synthetic patients, nurses, updates, tasks, incident, and authored AI examples. Source updates and recommendations are separate records linked by identifiers.
-- `src/styles.css`: light/teal styling and responsive layouts. DM Sans and Manrope load from Google Fonts when reachable, with local sans-serif fallbacks.
-- `index.html`: Vite entry point. No credentials or AWS settings are needed.
+- `src/main.jsx`: charge nurse React screens, search/filter state, and read-only detail dialogs.
+- `src/admin/main.jsx`, `src/admin/AdminApp.jsx`, `src/admin/AdminDashboard.jsx`: the separate administrator console — its own entry component, top bar, and the five admin panels (overview, users, patients, policies, incidents). All management controls are disabled or preview-only.
+- `src/data.js`: synthetic patients, nurses, updates, tasks, incident, and authored AI examples, shared by both apps. Source updates and recommendations are separate records linked by identifiers.
+- `src/styles.css`: light/teal styling and responsive layouts for both apps. DM Sans and Manrope load from Google Fonts when reachable, with local sans-serif fallbacks.
+- `index.html` / `admin.html`: the two Vite entry points (charge nurse and administrator). No credentials or AWS settings are needed.
+- `vite.config.js`: declares both entry points as a multi-page build and binds the dev/preview servers to loopback.
 
 All records are read-only, in-memory fixtures. The sample clock anchors on each page load. Incident duration and overdue/freshness calculations use timestamps, refresh every 30 seconds, and do not depend on the viewer's locale. Displayed times use `America/Los_Angeles` (Pacific time). Information is flagged as unverified if it has no verification timestamp or was last verified more than **60 minutes** ago; this is a prototype choice, not a requirement or facility policy.
 

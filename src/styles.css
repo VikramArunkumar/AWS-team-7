@@ -89,3 +89,25 @@
 
 @media(max-width:1080px){.admin-overview-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:680px){.admin-overview-grid{grid-template-columns:1fr 1fr}.admin-subnav{gap:3px}.admin-nav-item{padding:8px 10px;font-size:10px}.admin-section-heading{flex-direction:column}.admin-add-btn{align-self:flex-start}}
+
+
+/* ── Separate admin app chrome ────────────────────────────────────────────── */
+.admin-app{min-height:100vh;display:flex;flex-direction:column;background:#f6f8f7}
+.admin-app-topbar{height:73px;border-bottom:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 34px;flex-wrap:wrap}
+.admin-app-brand{padding:0;font-size:22px}
+.admin-app-console-tag{margin-left:12px;padding:4px 9px;border-radius:5px;background:#eaf4ef;color:#216750;font-family:'DM Sans',sans-serif;font-size:10px;font-weight:600;letter-spacing:.3px}
+.admin-app-topbar-right{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.admin-app-profile{display:flex;align-items:center;gap:9px}
+.admin-app-profile strong{font-size:11px;display:block}
+.admin-app-profile div>span{display:block;font-size:9px;color:var(--muted);margin-top:4px}
+.admin-app-avatar{width:34px;height:34px;background:#eaf3ed;color:#4c856b;font-size:10px}
+.admin-app-banner{display:flex;align-items:flex-start;gap:12px;border:1px solid #e1eae3;background:#f4f8f5;color:#728979;border-radius:8px;padding:15px 18px;margin:20px 34px 0}
+.admin-app-banner-icon{color:#56836c;display:flex;margin-top:2px;flex-shrink:0}
+.admin-app-banner strong{display:block;font-size:12px;color:#48634f}
+.admin-app-banner p{font-size:11px;line-height:1.8;color:#7d8d81;margin-top:6px;max-width:860px}
+.admin-app-main{padding:0 34px 0;max-width:1800px;margin:0 auto;width:100%}
+.admin-app-heading{padding:30px 0 26px}
+.admin-app-heading h1{font-size:29px;line-height:1.45;letter-spacing:-1px;font-weight:750;margin:6px 0}
+.admin-app-heading p{color:#76877c;font-size:12px}
+@media(max-width:850px){.admin-app-topbar{padding:0 20px;height:auto;min-height:65px;padding-top:12px;padding-bottom:12px}.admin-app-banner{margin:16px 20px 0}.admin-app-main{padding:0 20px 0}.admin-app-heading h1{font-size:24px}}
+@media(max-width:680px){.admin-app-topbar{padding:14px 16px}.admin-app-console-tag{margin-left:8px}.admin-app-topbar-right{gap:12px}.admin-app-switch{font-size:9px}.admin-app-banner{margin:14px 16px 0;padding:14px}.admin-app-main{padding:0 16px 0}.admin-app-heading{padding:22px 0}.admin-app-heading h1{font-size:23px}}

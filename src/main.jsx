@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Activity, ArrowDown, ArrowRight, ArrowUpRight, Bell, BookOpen, CheckCheck, ChevronRight, CircleHelp, ClipboardCheck, ClipboardList, Clock3, FileText, HeartPulse, LayoutDashboard, Menu, Plus, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, TriangleAlert, Users, X } from 'lucide-react';
+import { Activity, ArrowDown, ArrowRight, ArrowUpRight, Bell, BookOpen, CheckCheck, ChevronRight, CircleHelp, ClipboardCheck, ClipboardList, Clock3, FileText, HeartPulse, LayoutDashboard, Menu, Plus, Search, ShieldCheck, SlidersHorizontal, Sparkles, TriangleAlert, Users, X } from 'lucide-react';
 import { demoNow, incident, nurses, patients, updates, tasks, recommendations, isUnverified, minutesSince, formatTime } from './data.js';
-import AdminDashboard from './AdminDashboard.jsx';
 import './styles.css';
 
 const nurseFor = (id) => nurses.find((nurse) => nurse.id === id);
@@ -11,7 +10,6 @@ const navigation = [
   { label: 'Overview', icon: LayoutDashboard }, { label: 'Patients', icon: HeartPulse },
   { label: 'Tasks', icon: ClipboardList, count: tasks.length }, { label: 'Care team', icon: Users },
   { label: 'AI review', icon: Sparkles, count: recommendations.length }, { label: 'Policy assistant', icon: BookOpen },
-  { label: 'Admin', icon: Settings },
 ];
 function Badge({ children, tone = 'neutral' }) { return <span className={`badge ${tone}`}>{children}</span>; }
 function Avatar({ nurse, small = false }) { return <span className={`avatar ${nurse.tone} ${small ? 'small' : ''}`}>{nurse.initials}</span>; }
@@ -92,7 +90,6 @@ function App() {
         {page === 'Care team' && <><div className="staffing-notice"><TriangleAlert size={20} /><div><strong>1 coverage gap needs review</strong><p>West station support · 15:00–16:00 Pacific · Sample staffing plan</p></div><Badge tone="amber">Unassigned</Badge></div><div className="team-grid">{nurses.map((nurse) => <section className="panel team-card" key={nurse.id}><Avatar nurse={nurse} /><h2>{nurse.name}</h2><p>Registered nurse · 4 West</p><Badge tone={nurse.status === 'Available' ? 'green' : nurse.status === 'On break' ? 'amber' : 'neutral'}>{nurse.status}</Badge><div className="team-card-footer"><span>{nurse.patients} patients in staffing plan</span><button className="text-button" onClick={() => { go('Patients'); setNurseFilter(nurse.id); setFilter('All patients'); setShowFilters(true); }}>View sample <ArrowRight size={13} /></button></div></section>)}</div><p className="page-note">Staffing totals represent a fictional unit plan. The patient view shows only eight example records from that plan.</p></>}
         {page === 'AI review' && <>{reviewPanel}<div className="notice wide-notice"><ShieldCheck size={19} /><span>These recommendations are authored examples with links to synthetic source updates. Bedrock and Guardrails are not connected. No recommendation can change this sample’s patient or task data.</span></div></>}
         {page === 'Policy assistant' && <section className="panel policy-panel"><span className="policy-symbol"><BookOpen size={30} /></span><Badge tone="teal">Policy assistant preview</Badge><h2>Reliable answers start with your policies.</h2><p>Ask about facility downtime procedures and review the supporting source documents before acting.</p><div className="policy-empty"><TriangleAlert size={20} /><div><strong>No policy source connected</strong><p>No reliable policy answer is available. This prototype does not have a Bedrock Knowledge Base or retrieved facility documents.</p></div></div><label htmlFor="policy-question">Your question</label><div className="policy-input"><input id="policy-question" disabled placeholder="How do I document care during an EHR outage?" /><button className="primary-button" aria-label="Ask policy assistant (preview only)" disabled><ArrowRight size={18} /></button></div><small>Available when an authorized policy retrieval service is connected.</small></section>}
-        {page === 'Admin' && <AdminDashboard />}
         <footer className="page-footer"><span><span className="brand-mini"><Plus size={12} strokeWidth={3} /></span> CareBridge <span>·</span> Continuity of care, together.</span><span>Local visual prototype <span>·</span> Times in Pacific</span></footer>
       </main>
     </div>
