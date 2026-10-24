@@ -69,3 +69,18 @@
 .shell-root .topbar{padding-right:300px}
 @media(max-width:850px){.shell-root .topbar{padding-right:240px}}
 @media(max-width:680px){.shell-root .topbar{padding-right:150px}}
+
+/* ── Policy assistant answer + citations (frontend-only demo). Reuses theme. ── */
+.policy-answer{margin-top:26px;border-top:1px solid var(--border);padding-top:24px}
+.policy-answer>.eyebrow{font-size:8px;letter-spacing:1px;color:#7f9a86;margin-bottom:16px}
+.policy-result{border:1px solid #e4ece6;background:#fbfdfb;border-radius:9px;padding:19px 18px;margin-bottom:13px}
+.policy-result h3{font-size:13px;font-weight:650;color:#3f5a4a;margin-bottom:9px}
+.policy-result p{font-size:12px;line-height:1.85;color:#6d7e73}
+.policy-citation{display:flex;align-items:flex-start;gap:9px;margin-top:14px;padding-top:13px;border-top:1px solid #e9efe9;color:#5a826b}
+.policy-citation svg{flex-shrink:0;margin-top:2px}
+.policy-citation strong{display:block;font-size:11px;color:#4c6555}
+.policy-citation small{display:block;font-size:10px;color:#8a9a8e;margin-top:4px}
+.policy-disclaimer{display:flex;align-items:flex-start;gap:7px;font-size:10px;line-height:1.7;color:#8b988d;margin-top:16px}
+.policy-disclaimer svg{flex-shrink:0;margin-top:2px;color:#8aa796}
+.policy-hint{display:flex;align-items:center;gap:8px;margin-top:22px;padding:13px 15px;border:1px dashed #d8e2da;border-radius:7px;font-size:11px;color:#7d8d81;background:#fafcfb}
+.policy-hint svg{flex-shrink:0;color:#8aa796}
