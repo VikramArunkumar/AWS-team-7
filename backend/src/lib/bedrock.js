@@ -86,7 +86,7 @@ export async function converseText({ system, userText, maxTokens = 1024 }) {
   } catch (err) {
     // AWS service error names and messages describe configuration or permission
     // problems, not request content, so they are safe to keep for diagnosis.
-    throw new BedrockError('service_error', `${err?.name || 'Error'}: ${String(err?.message ?? '').slice(0, 200)}`);
+    throw new BedrockError('service_error', `${err?.name || 'Error'}: ${String(err?.message ?? '').slice(0, 400)}`);
   }
   if (response.stopReason === 'guardrail_intervened') {
     throw new BedrockError('guardrail_blocked', 'Guardrail blocked the response.');
