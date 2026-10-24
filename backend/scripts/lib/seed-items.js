@@ -39,6 +39,10 @@ export function buildSeedItems(fixtures, { now = new Date().toISOString() } = {}
       id: p.id, name: p.name, age: p.age, room: p.room, nurse: p.nurse,
       priority: p.priority, concern: p.concern, detail: p.detail,
       verifiedAt: p.verifiedAt ?? null, note: p.note, source: p.source,
+      // FR-9 continuity profile fields (synthetic).
+      allergies: p.allergies ?? [], medications: p.medications ?? [],
+      conditions: p.conditions ?? [], carePriorities: p.carePriorities ?? null,
+      riskIndicators: p.riskIndicators ?? [],
     });
   }
 

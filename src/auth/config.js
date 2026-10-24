@@ -24,6 +24,10 @@ export const REQUIRED_ENV = [
 const FORBIDDEN_ENV = /SECRET|PASSWORD|AWS_ACCESS_KEY|AWS_SESSION_TOKEN|PRIVATE_KEY/i;
 
 const REGION = /^[a-z]{2}(-[a-z]+)+-\d+$/;
+const INCIDENT_ID = /^[A-Za-z0-9-]{1,64}$/;
+// The seeded demo incident (backend/scripts/seed.js). Override with
+// VITE_INCIDENT_ID when a different incident is active.
+export const DEFAULT_INCIDENT_ID = 'INC-0042';
 const CLIENT_ID = /^[a-z0-9]{1,128}$/;
 
 function isLoopback(url) {
@@ -86,6 +90,8 @@ export function buildAuthConfig(env, { currentOrigin } = {}) {
   if (redirect && currentOrigin && redirect.origin !== currentOrigin) {
     errors.push(`Open CareBridge at ${redirect.origin}. Sign-in is configured for that address, not ${currentOrigin}.`);
   }
+  const incidentId = String(env.VITE_INCIDENT_ID ?? '').trim() || DEFAULT_INCIDENT_ID;
+  if (!INCIDENT_ID.test(incidentId)) errors.push('VITE_INCIDENT_ID may contain only letters, numbers, and hyphens.');
   if (errors.length) return { ok: false, errors };
 
   const domainUrl = domain.origin;
@@ -94,6 +100,7 @@ export function buildAuthConfig(env, { currentOrigin } = {}) {
     ok: true,
     value: {
       apiBaseUrl: api.href.replace(/\/+$/, ''),
+      incidentId,
       oidc: {
         authority: `https://cognito-idp.${region}.amazonaws.com/${userPoolId}`,
         client_id: clientId,

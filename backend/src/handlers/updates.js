@@ -17,8 +17,9 @@
 
 import { PutCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { ddb, TABLE_NAME } from '../lib/ddb.js';
+import { createHash } from 'node:crypto';
 import {
-  updateKey, recommendationKey, incidentMetaKey, ENTITY,
+  updateKey, recommendationKey, incidentMetaKey, patientKey, ENTITY,
 } from '../lib/keys.js';
 import { newUpdateId, newRecId, nowIso } from '../lib/ids.js';
 import { writeAudit, AUDIT_ACTIONS } from '../lib/audit.js';
@@ -32,6 +33,27 @@ const CATEGORIES = [
   'Patient concern', 'Patient update', 'Delayed task', 'Completed task',
   'Supply request', 'Staffing', 'Handoff', 'Verification', 'Other',
 ];
+
+// A browser-generated id for one submission. Retrying the same submission
+// (double click, timeout, flaky network) must not create a second update.
+const CLIENT_REQUEST_ID = /^[A-Za-z0-9-]{8,64}$/;
+
+// Deterministic per author, so one nurse's request id can never collide with
+// or reveal another nurse's update.
+function updateIdForRequest(userId, clientRequestId) {
+  const digest = createHash('sha256').update(`${userId}:${clientRequestId}`).digest('hex');
+  return `UPD-${digest.slice(0, 16)}`;
+}
+
+async function assertPatientExists(incidentId, patientId) {
+  if (typeof patientId !== 'string') {
+    throw new HttpError(400, 'invalid_patient', 'Choose a patient from this incident.');
+  }
+  const res = await ddb.send(new GetCommand({
+    TableName: TABLE_NAME, Key: patientKey(incidentId, patientId),
+  }));
+  if (!res.Item) throw new HttpError(400, 'invalid_patient', 'Choose a patient from this incident.');
+}
 
 async function assertIncidentActive(incidentId) {
   const res = await ddb.send(new GetCommand({
@@ -55,10 +77,17 @@ async function createUpdate(event) {
     throw new HttpError(400, 'missing_text', 'Update text is required.');
   }
   const category = CATEGORIES.includes(body.category) ? body.category : 'Other';
+  if (body.clientRequestId !== undefined
+    && (typeof body.clientRequestId !== 'string' || !CLIENT_REQUEST_ID.test(body.clientRequestId))) {
+    throw new HttpError(400, 'invalid_request_id', 'Invalid request id.');
+  }
 
   await assertIncidentActive(incidentId);
+  await assertPatientExists(incidentId, body.patient);
 
-  const updateId = newUpdateId();
+  const updateId = body.clientRequestId
+    ? updateIdForRequest(actor.userId, body.clientRequestId)
+    : newUpdateId();
   const createdAt = nowIso();
   const item = {
     ...updateKey(incidentId, updateId),
@@ -76,11 +105,24 @@ async function createUpdate(event) {
     processing: 'not_processed',    // not_processed | pending | processed | failed
   };
 
-  await ddb.send(new PutCommand({
-    TableName: TABLE_NAME,
-    Item: item,
-    ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
-  }));
+  try {
+    await ddb.send(new PutCommand({
+      TableName: TABLE_NAME,
+      Item: item,
+      ConditionExpression: 'attribute_not_exists(PK) AND attribute_not_exists(SK)',
+    }));
+  } catch (err) {
+    if (err.name !== 'ConditionalCheckFailedException' || !body.clientRequestId) throw err;
+    // A retry of a submission that already saved: return the stored update
+    // unchanged (it may since have been corrected) instead of a duplicate.
+    const prior = await ddb.send(new GetCommand({
+      TableName: TABLE_NAME, Key: updateKey(incidentId, updateId),
+    }));
+    if (prior.Item?.nurse !== actor.userId) {
+      throw new HttpError(409, 'conflict', 'This update could not be saved. Try again.');
+    }
+    return ok(prior.Item);
+  }
 
   await writeAudit(incidentId, {
     actor,
@@ -93,13 +135,20 @@ async function createUpdate(event) {
 }
 
 // FR-17: a user may correct ONLY their own update, preserving original content
-// and a correction history. The original text is pushed into editHistory.
+// and a correction history. The prior text, category, and urgent flag are
+// pushed into editHistory before the new values are written.
 async function editUpdate(event) {
   const actor = await authenticate(event);
   const { incidentId, updateId } = event.pathParameters || {};
   const body = parseBody(event);
   if (!body.text || !String(body.text).trim()) {
     throw new HttpError(400, 'missing_text', 'Updated text is required.');
+  }
+  if (body.category !== undefined && !CATEGORIES.includes(body.category)) {
+    throw new HttpError(400, 'invalid_category', 'Unknown update category.');
+  }
+  if (body.urgent !== undefined && typeof body.urgent !== 'boolean') {
+    throw new HttpError(400, 'invalid_urgent', 'Urgent must be true or false.');
   }
 
   const existing = await ddb.send(new GetCommand({
@@ -120,14 +169,23 @@ async function editUpdate(event) {
       // Re-check ownership atomically so a concurrent change cannot slip through.
       ConditionExpression: 'nurse = :author',
       UpdateExpression:
-        'SET #text = :newText, editHistory = list_append(editHistory, :entry), editedAt = :editedAt',
+        'SET #text = :newText, category = :category, urgent = :urgent, '
+        + 'editHistory = list_append(editHistory, :entry), editedAt = :editedAt',
       ExpressionAttributeNames: { '#text': 'text' },
       ExpressionAttributeValues: {
         ':author': actor.userId,
         ':newText': String(body.text),
+        ':category': body.category ?? existing.Item.category,
+        ':urgent': body.urgent ?? Boolean(existing.Item.urgent),
         ':editedAt': editedAt,
-        // Preserve the prior text and when it was replaced (FR-17 / NFR-14).
-        ':entry': [{ text: existing.Item.text, replacedAt: editedAt, by: actor.userId }],
+        // Preserve the prior version and when it was replaced (FR-17 / NFR-14).
+        ':entry': [{
+          text: existing.Item.text,
+          category: existing.Item.category,
+          urgent: Boolean(existing.Item.urgent),
+          replacedAt: editedAt,
+          by: actor.userId,
+        }],
       },
       ReturnValues: 'ALL_NEW',
     }));

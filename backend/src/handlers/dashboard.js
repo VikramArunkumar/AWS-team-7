@@ -16,10 +16,9 @@ import { ddb, TABLE_NAME } from '../lib/ddb.js';
 import { incidentPk, ENTITY } from '../lib/keys.js';
 import { authenticate, requireRole, ROLES } from '../lib/auth.js';
 import { ok, withErrorHandling, HttpError } from '../lib/http.js';
-
-// Prototype freshness window for patient verification (FR-11). This threshold
-// is a documented product decision, not something the requirements specify.
-const VERIFICATION_FRESHNESS_MINUTES = 60;
+import {
+  VERIFICATION_FRESHNESS_MINUTES, isUnverified, isOverdue, durationMinutes,
+} from '../lib/indicators.js';
 
 const OPEN_TASK_STATUSES = new Set(['Unconfirmed', 'In progress', 'Delayed', 'Unable to complete']);
 
@@ -109,22 +108,6 @@ async function getDashboard(event) {
     recommendations,
     meta: { verificationFreshnessMinutes: VERIFICATION_FRESHNESS_MINUTES },
   });
-}
-
-function isUnverified(verifiedAt, now) {
-  if (!verifiedAt) return true;
-  return now - Date.parse(verifiedAt) > VERIFICATION_FRESHNESS_MINUTES * 60000;
-}
-
-function isOverdue(task, now) {
-  if (!task.dueAt) return false;
-  const open = task.status !== 'Completed';
-  return open && Date.parse(task.dueAt) < now;
-}
-
-function durationMinutes(incident, now) {
-  const end = incident.endedAt ? Date.parse(incident.endedAt) : now;
-  return Math.max(0, Math.floor((end - Date.parse(incident.startedAt)) / 60000));
 }
 
 export const handler = withErrorHandling(getDashboard);

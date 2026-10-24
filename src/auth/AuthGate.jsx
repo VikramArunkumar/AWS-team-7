@@ -198,5 +198,7 @@ export function AuthGate({ config, children }) {
   if (!view) {
     return <AccessProblem error={{ code: 'role_unrecognized', message: 'Your CareBridge role is not recognized.' }} onRetry={() => setAttempt((n) => n + 1)} onSignOut={handleSignOut} />;
   }
-  return children({ me, view, signOut: handleSignOut });
+  return children({
+    me, view, signOut: handleSignOut, api, incidentId: config.incidentId, onSessionExpired: expireSession,
+  });
 }

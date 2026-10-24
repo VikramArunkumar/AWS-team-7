@@ -67,3 +67,48 @@ describe('createApiClient', () => {
     await assert.rejects(api.getMe(), (err) => err.code === 'network_error' && !err.message.includes(TOKEN));
   });
 });
+
+describe('nurse workspace calls', () => {
+  const api = (calls, body = {}) => createApiClient({
+    baseUrl: BASE, getAccessToken: () => TOKEN, fetchImpl: async (url, init) => { calls.push({ url, init }); return jsonResponse(200, body); },
+  });
+
+  test('reads the workspace for the configured incident', async () => {
+    const calls = [];
+    await api(calls).getWorkspace('INC-0042');
+    assert.equal(calls[0].url, `${BASE}/incidents/INC-0042/workspace`);
+    assert.equal(calls[0].init.method, 'GET');
+  });
+
+  test('saves an update with its request id and never an author field', async () => {
+    const calls = [];
+    await api(calls).createUpdate('INC-0042', {
+      patient: 'CB-1001', category: 'Patient update', text: 'Synthetic note.', urgent: true, clientRequestId: 'req-1234-abcd',
+    });
+    assert.equal(calls[0].url, `${BASE}/incidents/INC-0042/updates`);
+    assert.equal(calls[0].init.method, 'POST');
+    const sent = JSON.parse(calls[0].init.body);
+    assert.deepEqual(sent, {
+      patient: 'CB-1001', category: 'Patient update', text: 'Synthetic note.', urgent: true, clientRequestId: 'req-1234-abcd',
+    });
+    assert.equal(sent.nurse, undefined);
+  });
+
+  test('corrects an update and reports task status with PATCH', async () => {
+    const calls = [];
+    const client = api(calls);
+    await client.correctUpdate('INC-0042', 'UPD-101', { text: 'Fixed.', category: 'Handoff', urgent: false });
+    await client.setTaskStatus('INC-0042', 'TSK-201', 'Completed');
+    assert.equal(calls[0].url, `${BASE}/incidents/INC-0042/updates/UPD-101`);
+    assert.equal(calls[0].init.method, 'PATCH');
+    assert.deepEqual(JSON.parse(calls[0].init.body), { text: 'Fixed.', category: 'Handoff', urgent: false });
+    assert.equal(calls[1].url, `${BASE}/incidents/INC-0042/tasks/TSK-201`);
+    assert.deepEqual(JSON.parse(calls[1].init.body), { status: 'Completed' });
+  });
+
+  test('path segments are encoded so ids cannot change the route', async () => {
+    const calls = [];
+    await api(calls).setTaskStatus('INC-0042', '../me?x=1', 'Completed');
+    assert.equal(calls[0].url, `${BASE}/incidents/INC-0042/tasks/..%2Fme%3Fx%3D1`);
+  });
+});
