@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { createRoot } from 'react-dom/client';
 import { Activity, ArrowDown, ArrowRight, ArrowUpRight, Bell, BookOpen, CheckCheck, ChevronRight, CircleHelp, ClipboardCheck, ClipboardList, Clock3, FileText, HeartPulse, LayoutDashboard, Menu, Plus, Search, ShieldCheck, SlidersHorizontal, Sparkles, TriangleAlert, Users, X } from 'lucide-react';
 import { demoNow, incident, nurses, patients, updates, tasks, recommendations, isUnverified, minutesSince, formatTime } from './data.js';
 import './styles.css';
@@ -15,7 +14,7 @@ function Badge({ children, tone = 'neutral' }) { return <span className={`badge 
 function Avatar({ nurse, small = false }) { return <span className={`avatar ${nurse.tone} ${small ? 'small' : ''}`}>{nurse.initials}</span>; }
 function Priority({ value }) { return <Badge tone={value === 'High' ? 'red' : value === 'Moderate' ? 'amber' : 'green'}><span className="status-dot" />{value}</Badge>; }
 
-function App() {
+export default function App() {
   const [page, setPage] = useState('Overview');
   const [now, setNow] = useState(demoNow);
   const [search, setSearch] = useState('');
@@ -96,5 +95,3 @@ function App() {
     <dialog ref={dialog} className="detail-dialog" onCancel={() => setModal(null)} onClick={(event) => { if (event.target === dialog.current) setModal(null); }} aria-label={modal?.type === 'all-updates' ? 'All nurse updates' : 'CareBridge details'}><div className="dialog-content"><button className="icon-button modal-close" aria-label="Close details" onClick={() => setModal(null)} autoFocus><X size={21} /></button>{modal?.type === 'all-updates' ? <><span className="eyebrow">ORIGINAL SOURCE UPDATES</span><h2>Updates from your team</h2><p className="modal-lead">All entries are synthetic. Select an update to read its original content.</p>{updates.map((update) => <button className="detail-list-item" key={update.id} onClick={() => setModal({ type: 'update', item: update })}><Avatar nurse={nurseFor(update.nurse)} small /><span>{patientFor(update.patient).name}<small>{nurseFor(update.nurse).name} · {formatTime(update.createdAt)} Pacific · {update.category}</small></span><ChevronRight size={16} /></button>)}</> : renderModal()}</div></dialog>
   </div>;
 }
-
-createRoot(document.getElementById('root')).render(<App />);
