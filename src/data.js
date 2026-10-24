@@ -40,6 +40,9 @@ export const tasks = [
   { id: 'TSK-206', patient: 'CB-1008', description: 'Review unverified continuity information', nurse: 'n4', priority: 'Moderate', dueAt: minutesFromNow(35), status: 'In progress', createdAt: minutesAgo(15), creator: 'Olivia Bennett' },
   { id: 'TSK-207', patient: 'CB-1005', description: 'Prepare next shift coordination notes', nurse: 'n1', priority: 'Low', dueAt: minutesFromNow(50), status: 'In progress', createdAt: minutesAgo(10), creator: 'Olivia Bennett' },
 ];
+// The signed-in nurse for the nurse-facing dashboard demo. Charge nurse view uses Olivia Bennett.
+export const currentNurseId = 'n1';
+export const updateCategories = ['Patient update', 'Patient concern', 'Delayed task', 'Completed task', 'Supply request', 'Staffing', 'Handoff'];
 export const recommendations = [
   { id: 'REC-01', patient: 'CB-1001', title: 'Confirm support for the follow-up assessment', reason: 'The source update requests assistance and does not confirm coverage. Review the request with the assigned nurse.', source: 'UPD-101' },
   { id: 'REC-02', patient: 'CB-1003', title: 'Prioritize continuity packet verification', reason: 'The source update explicitly says verification is pending. Confirm the available records before using the information.', source: 'UPD-103' },

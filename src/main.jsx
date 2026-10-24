@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Activity, ArrowDown, ArrowRight, ArrowUpRight, Bell, BookOpen, CheckCheck, ChevronRight, CircleHelp, ClipboardCheck, ClipboardList, Clock3, FileText, HeartPulse, LayoutDashboard, Menu, Plus, Search, ShieldCheck, SlidersHorizontal, Sparkles, TriangleAlert, Users, X } from 'lucide-react';
-import { demoNow, incident, nurses, patients, updates, tasks, recommendations, isUnverified, minutesSince, formatTime } from './data.js';
+import { Activity, ArrowDown, ArrowRight, ArrowUpRight, Bell, BookOpen, CheckCheck, ChevronRight, CircleHelp, ClipboardCheck, ClipboardList, Clock3, FileText, HeartPulse, LayoutDashboard, Menu, Plus, Search, Send, ShieldCheck, SlidersHorizontal, Sparkles, TriangleAlert, Users, X } from 'lucide-react';
+import { demoNow, incident, nurses, patients, updates, tasks, recommendations, currentNurseId, updateCategories, isUnverified, minutesSince, formatTime } from './data.js';
 import './styles.css';
 
 const nurseFor = (id) => nurses.find((nurse) => nurse.id === id);
@@ -15,7 +15,7 @@ function Badge({ children, tone = 'neutral' }) { return <span className={`badge 
 function Avatar({ nurse, small = false }) { return <span className={`avatar ${nurse.tone} ${small ? 'small' : ''}`}>{nurse.initials}</span>; }
 function Priority({ value }) { return <Badge tone={value === 'High' ? 'red' : value === 'Moderate' ? 'amber' : 'green'}><span className="status-dot" />{value}</Badge>; }
 
-function App() {
+function App({ role, setRole }) {
   const [page, setPage] = useState('Overview');
   const [now, setNow] = useState(demoNow);
   const [search, setSearch] = useState('');
@@ -79,7 +79,7 @@ function App() {
   return <div className="app-shell">
     {mobileMenu && <button className="mobile-backdrop" aria-label="Close navigation" onClick={() => setMobileMenu(false)} />}
     <aside className={`sidebar ${mobileMenu ? 'open' : ''}`}><a className="brand" href="#overview" onClick={(event) => { event.preventDefault(); go('Overview'); }}><span className="brand-mark"><Plus size={24} strokeWidth={3} /></span>CareBridge<span className="brand-period">.</span></a><div className="workspace"><span className="workspace-icon"><Activity size={18} /></span><div><strong>Westbrook Medical</strong><span>Care coordination</span></div></div><div className="nav-label">WORKSPACE</div><nav>{navigation.map(({ label, icon: Icon, count }) => <button key={label} className={`nav-item ${page === label ? 'active' : ''}`} onClick={() => go(label)} aria-current={page === label ? 'page' : undefined}><Icon size={18} /><span>{label}</span>{count && <span className="nav-count">{count}</span>}</button>)}</nav><div className="sidebar-bottom"><div className="continuity-note"><span className="continuity-icon"><ShieldCheck size={19} /></span><strong>Continuity starts with you.</strong><p>A shared view. A connected team. Care that keeps moving.</p><span className="small-caps">HERE WHEN IT MATTERS</span></div><button className="nav-item" onClick={() => setModal({ type: 'about' })}><CircleHelp size={18} /><span>About this prototype</span></button><div className="profile"><span className="avatar profile-avatar">OB</span><div><strong>Olivia Bennett</strong><span>Charge nurse · Demo profile</span></div></div></div></aside>
-    <div className="workspace-main"><header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" onClick={() => setMobileMenu(true)}><Menu size={21} /></button><span>Workspace</span><ChevronRight size={13} /><strong>{page}</strong></div><div className="topbar-right"><span className="demo-label"><span /> Prototype · synthetic data</span><span className="topbar-divider" /><button className="icon-button notification-button" aria-label="View urgent nurse updates" onClick={() => setModal({ type: 'update', item: updates[0] })}><Bell size={18} /><i /></button><span className="avatar top-avatar">OB</span></div></header>
+    <div className="workspace-main"><header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" onClick={() => setMobileMenu(true)}><Menu size={21} /></button><span>Workspace</span><ChevronRight size={13} /><strong>{page}</strong></div><div className="topbar-right"><RoleToggle role={role} setRole={setRole} /><span className="topbar-divider" /><span className="demo-label"><span /> Prototype · synthetic data</span><span className="topbar-divider" /><button className="icon-button notification-button" aria-label="View urgent nurse updates" onClick={() => setModal({ type: 'update', item: updates[0] })}><Bell size={18} /><i /></button><span className="avatar top-avatar">OB</span></div></header>
       <main><div className="incident-banner"><span className="incident-icon"><Activity size={17} /></span><strong>EHR outage</strong><Badge tone="amber">Incident active</Badge><span className="incident-description">Downtime coordination is in progress</span><div className="incident-time"><Clock3 size={14} /><strong>{Math.floor(elapsed / 60)}h {String(elapsed % 60).padStart(2, '0')}m</strong><span>elapsed</span></div></div>
         <section className="page-heading"><div><div className="eyebrow">{incident.unit.toUpperCase()}</div><h1>{page === 'Overview' ? 'Your unit, at a glance.' : page === 'Patients' ? 'Every patient in view.' : page === 'Tasks' ? 'Keep care moving.' : page === 'Care team' ? 'Your team, connected.' : page === 'AI review' ? 'Your judgment comes first.' : 'Find the right guidance.'}</h1><p>{page === 'Overview' ? 'Stay ahead of urgent needs. Keep your team connected.' : page === 'Patients' ? 'Review coordination needs and verify continuity information.' : page === 'Tasks' ? 'See what needs attention, who owns it, and what’s next.' : page === 'Care team' ? 'A shared view of availability, coverage, and staffing gaps.' : page === 'AI review' ? 'Review supporting evidence before making a decision.' : 'Facility-specific answers need verified policy sources.'}</p></div><button className="secondary-button handoff-button" onClick={() => setModal({ type: 'handoff' })}><FileText size={16} /> Handoff preview <ArrowUpRight size={14} /></button></section>
         {(page === 'Overview' || page === 'Patients') && <div className="stats-grid"><button className="stat-card" onClick={() => { go('Patients'); setFilter('All patients'); }}><span className="stat-label">Active patients <HeartPulse size={18} /></span><div className="stat-value">{patients.length}<span>in this sample</span></div><span className="stat-description">Across 4 West <ArrowUpRight size={13} /></span></button><button className="stat-card urgent-stat" onClick={() => { setFilter('High priority'); }}><span className="stat-label">High priority <TriangleAlert size={18} /></span><div className="stat-value">{patients.filter((patient) => patient.priority === 'High').length}<span>need your attention</span></div><span className="stat-description red-text">Review urgent concerns <ArrowRight size={13} /></span></button><button className="stat-card" onClick={() => { go('Tasks'); setTaskFilter('Overdue'); }}><span className="stat-label">Open tasks <ClipboardList size={18} /></span><div className="stat-value">{tasks.length}<span><span className="amber-text">{overdue.length} overdue</span></span></div><span className="stat-description">{tasks.filter((task) => task.status === 'Unconfirmed').length} awaiting confirmation <ArrowUpRight size={13} /></span></button><button className="stat-card" onClick={() => go('Care team')}><span className="stat-label">Nurses available <Users size={18} /></span><div className="stat-value">2<span>of 6 on shift</span></div><span className="stat-description"><span className="green-dot" /> 1 coverage gap to review <ArrowUpRight size={13} /></span></button></div>}
@@ -97,4 +97,140 @@ function App() {
   </div>;
 }
 
-createRoot(document.getElementById('root')).render(<App />);
+const statusTone = (status) => status === 'Completed' ? 'green' : status === 'Delayed' ? 'red' : status === 'Unconfirmed' ? 'amber' : 'teal';
+
+function NurseView({ role, setRole }) {
+  const nurse = nurses.find((entry) => entry.id === currentNurseId);
+  const [now, setNow] = useState(demoNow);
+  const [page, setPage] = useState('My shift');
+  const [modal, setModal] = useState(null);
+  const [mobileMenu, setMobileMenu] = useState(false);
+  // Local-only task status overrides. Nothing is persisted in this prototype.
+  const [taskState, setTaskState] = useState({});
+  // Draft nurse updates added this session (preview only, not stored anywhere).
+  const [drafts, setDrafts] = useState([]);
+  const [form, setForm] = useState({ patient: '', category: updateCategories[0], text: '', urgent: false });
+  const dialog = useRef(null);
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(timer); }, []);
+  useEffect(() => {
+    if (modal) { dialog.current?.showModal(); document.body.style.overflow = 'hidden'; }
+    else { dialog.current?.close(); document.body.style.overflow = ''; }
+    return () => { document.body.style.overflow = ''; };
+  }, [modal]);
+
+  const myPatients = patients.filter((patient) => patient.nurse === nurse.id);
+  const statusOf = (task) => taskState[task.id] ?? task.status;
+  const myTasks = tasks.filter((task) => task.nurse === nurse.id);
+  const myUpdates = [...drafts, ...updates.filter((update) => update.nurse === nurse.id)];
+  const openTasks = myTasks.filter((task) => statusOf(task) !== 'Completed');
+  const overdueTasks = myTasks.filter((task) => Date.parse(task.dueAt) < now && statusOf(task) !== 'Completed');
+  const elapsed = minutesSince(incident.startedAt, now);
+  const sortedTasks = [...myTasks].sort((a, b) => (statusOf(a) === 'Completed') - (statusOf(b) === 'Completed') || Date.parse(a.dueAt) - Date.parse(b.dueAt));
+
+  const setTask = (id, status) => setTaskState((prev) => ({ ...prev, [id]: status }));
+  const patientFor = (id) => patients.find((patient) => patient.id === id);
+
+  const submitUpdate = (event) => {
+    event.preventDefault();
+    if (!form.patient || !form.text.trim()) return;
+    const draft = { id: `UPD-NEW-${drafts.length + 1}`, patient: form.patient, nurse: nurse.id, createdAt: new Date().toISOString(), urgent: form.urgent, category: form.category, text: form.text.trim(), processing: 'Draft only · not submitted in this prototype', draft: true };
+    setDrafts((prev) => [draft, ...prev]);
+    setForm({ patient: '', category: updateCategories[0], text: '', urgent: false });
+    setModal({ type: 'submitted', item: draft });
+  };
+
+  const navigation = [
+    { label: 'My shift', icon: LayoutDashboard },
+    { label: 'My patients', icon: HeartPulse, count: myPatients.length },
+    { label: 'My tasks', icon: ClipboardList, count: openTasks.length },
+    { label: 'Submit update', icon: Send },
+  ];
+  const go = (next) => { setPage(next); setMobileMenu(false); };
+
+  const taskCard = (task) => {
+    const status = statusOf(task);
+    const patient = patientFor(task.patient);
+    const overdue = Date.parse(task.dueAt) < now && status !== 'Completed';
+    return <div className={`panel nurse-task ${status === 'Completed' ? 'done' : ''}`} key={task.id}>
+      <div className="nurse-task-head"><Priority value={task.priority} /><Badge tone={statusTone(status)}>{status}</Badge></div>
+      <h3>{task.description}</h3>
+      <p className="muted">Room {patient.room} · {patient.name} · {task.id}</p>
+      <div className="nurse-task-meta"><Clock3 size={13} /><strong className={overdue ? 'red-text' : ''}>{overdue ? `${minutesSince(task.dueAt, now)}m overdue` : `Due ${formatTime(task.dueAt)} Pacific`}</strong><span className="muted">Assigned by {task.creator}</span></div>
+      <div className="nurse-task-actions">
+        <button className="primary-button" disabled={status === 'Completed'} onClick={() => setTask(task.id, 'Completed')}><CheckCheck size={15} /> Mark complete</button>
+        <button className="secondary-button" disabled={status === 'Delayed'} onClick={() => setTask(task.id, 'Delayed')}>Report delay</button>
+        {status !== task.status && <button className="text-button" onClick={() => setTask(task.id, task.status)}>Undo</button>}
+      </div>
+    </div>;
+  };
+
+  function renderModal() {
+    if (!modal) return null;
+    const item = modal.item;
+    if (modal.type === 'patient') return <><span className="eyebrow">SYNTHETIC PATIENT · ROOM {item.room}</span><h2>{item.name}</h2><p className="modal-lead">{item.id} · {item.age} years · In your care</p><Priority value={item.priority} /><div className="detail-block"><h3>Current coordination concern</h3><p>{item.detail}</p></div><div className="detail-block"><h3>Information freshness</h3><p>{item.verifiedAt ? `Last verified at ${formatTime(item.verifiedAt)} Pacific (${minutesSince(item.verifiedAt, now)} minutes ago).` : 'This continuity profile has not been verified.'}</p><p className="muted">This prototype flags information after 60 minutes without verification. Demo setting, not a facility policy.</p></div><h3>Your tasks for this patient</h3>{myTasks.filter((task) => task.patient === item.id).map((task) => <div className="detail-list-item" key={task.id}><ClipboardList size={17} /><span>{task.description}<small>{statusOf(task)} · Due {formatTime(task.dueAt)} Pacific</small></span></div>)}<button className="secondary-button modal-footer-button" onClick={() => { setForm((prev) => ({ ...prev, patient: item.id })); setModal(null); go('Submit update'); }}><Send size={15} /> Submit an update for {item.name.split(' ')[0]}</button></>;
+    if (modal.type === 'submitted') return <><span className="eyebrow">UPDATE DRAFTED · {item.id}</span><h2>Update saved to this session.</h2><p className="modal-lead">{patientFor(item.patient).name} · Room {patientFor(item.patient).room} · {formatTime(item.createdAt)} Pacific</p>{item.urgent && <Badge tone="red">Marked urgent</Badge>}<div className="source-quote">{item.text}</div><p className="muted">Category: {item.category}</p><div className="notice">This is a local preview. In the full app the update would be stored and sent to the charge nurse. The original text is always preserved, even if AI processing fails.</div></>;
+    return <><span className="eyebrow">ABOUT THIS VIEW</span><h2>The nurse's view.</h2><p className="modal-lead">Submit updates and act on the tasks assigned to you.</p><p>This local visual prototype uses fictional people and synthetic data. Task status changes and submitted updates live only in this browser session. Sign-in, shared storage, and AI processing are not connected.</p></>;
+  }
+
+  const mainContent = <>
+    {(page === 'My shift' || page === 'My patients') && <div className="stats-grid">
+      <button className="stat-card" onClick={() => go('My patients')}><span className="stat-label">My patients <HeartPulse size={18} /></span><div className="stat-value">{myPatients.length}<span>in your care</span></div><span className="stat-description">View continuity info <ArrowRight size={13} /></span></button>
+      <button className="stat-card urgent-stat" onClick={() => go('My tasks')}><span className="stat-label">Open tasks <ClipboardList size={18} /></span><div className="stat-value">{openTasks.length}<span><span className="amber-text">{overdueTasks.length} overdue</span></span></div><span className="stat-description red-text">Act on your tasks <ArrowRight size={13} /></span></button>
+      <button className="stat-card" onClick={() => go('My patients')}><span className="stat-label">High priority <TriangleAlert size={18} /></span><div className="stat-value">{myPatients.filter((patient) => patient.priority === 'High').length}<span>need attention</span></div><span className="stat-description">Review concerns <ArrowUpRight size={13} /></span></button>
+      <button className="stat-card" onClick={() => go('Submit update')}><span className="stat-label">Submit update <Send size={18} /></span><div className="stat-value">{myUpdates.length}<span>from you</span></div><span className="stat-description">Add a new update <ArrowUpRight size={13} /></span></button>
+    </div>}
+
+    {page === 'My shift' && <div className="overview-grid"><div className="main-column">
+      <section className="panel"><div className="panel-heading"><div><h2>Tasks assigned to you <span className="count">{openTasks.length}</span></h2><p>Mark complete or report a delay. Changes are local previews.</p></div></div><div className="nurse-task-grid">{sortedTasks.slice(0, 4).map(taskCard)}{!sortedTasks.length && <div className="empty-state"><ClipboardCheck size={25} /><h3>No tasks assigned</h3><p>You're all caught up.</p></div>}</div>{sortedTasks.length > 4 && <button className="panel-bottom-link" onClick={() => go('My tasks')}>View all {myTasks.length} tasks <ArrowRight size={14} /></button>}</section>
+    </div><aside className="right-column">
+      <section className="panel updates-panel"><div className="panel-heading"><h2>Your recent updates</h2><span className="subtle-icon"><Activity size={17} /></span></div><div className="update-feed">{myUpdates.slice(0, 4).map((update) => <button className="update-item" key={update.id} onClick={() => update.draft ? setModal({ type: 'submitted', item: update }) : null}><div className="update-topline"><Avatar nurse={nurse} small /><strong>{update.draft ? 'Draft' : 'Sent'}</strong><time>{minutesSince(update.createdAt, now)}m ago</time></div><div className="update-body"><div className="update-patient">Room {patientFor(update.patient).room}<span>·</span>{patientFor(update.patient).name.split(' ')[0]}</div><p>{update.text}</p><div className="update-labels">{update.urgent ? <Badge tone="red">Urgent</Badge> : <Badge>{update.category}</Badge>}</div></div></button>)}{!myUpdates.length && <div className="empty-state"><Send size={22} /><p>No updates yet.</p></div>}</div><button className="panel-bottom-link" onClick={() => go('Submit update')}>Submit a new update <ArrowRight size={14} /></button></section>
+    </aside></div>}
+
+    {page === 'My patients' && <section className="panel patients-panel"><div className="panel-heading"><div><h2>Your patients <span className="count">{myPatients.length}</span></h2><p>Patients assigned to you during this incident.</p></div></div><div className="table-scroll"><table><thead><tr><th>Patient</th><th>Priority</th><th>Latest concern</th><th><span className="sr-only">Details</span></th></tr></thead><tbody>{myPatients.map((patient) => <tr key={patient.id}>
+      <td><button className="patient-name" onClick={() => setModal({ type: 'patient', item: patient })}>{patient.name}</button><span className="cell-secondary">Room {patient.room} <span>·</span> {patient.id}</span></td>
+      <td><Priority value={patient.priority} /></td>
+      <td><span className="concern">{patient.concern}</span><span className={`cell-secondary ${isUnverified(patient, now) ? 'warning-text' : ''}`}>{isUnverified(patient, now) ? <><TriangleAlert size={12} /> {patient.verifiedAt ? `Last verified ${minutesSince(patient.verifiedAt, now)}m ago` : 'Not yet verified'}</> : <><CheckCheck size={13} /> Verified {minutesSince(patient.verifiedAt, now)}m ago</>}</span></td>
+      <td><button className="icon-button" aria-label={`View ${patient.name}`} onClick={() => setModal({ type: 'patient', item: patient })}><ChevronRight size={17} /></button></td>
+    </tr>)}</tbody></table></div><div className="table-footer"><span>Showing {myPatients.length} patients in your care</span><span><ShieldCheck size={13} /> Synthetic patient data</span></div></section>}
+
+    {page === 'My tasks' && <section className="panel"><div className="panel-heading"><div><h2>My tasks <span className="count">{myTasks.length}</span></h2><p>Report completion or delays. Status changes are local previews.</p></div></div><div className="nurse-task-grid full">{sortedTasks.map(taskCard)}{!sortedTasks.length && <div className="empty-state"><ClipboardCheck size={25} /><h3>No tasks assigned</h3><p>You're all caught up.</p></div>}</div></section>}
+
+    {page === 'Submit update' && <section className="panel submit-panel"><div className="panel-heading"><div><h2><Send size={16} className="teal-text" /> Submit a nurse update</h2><p>Share a patient update, concern, or task status with the charge nurse.</p></div></div>
+      <form className="update-form" onSubmit={submitUpdate}>
+        <label>Patient<select value={form.patient} onChange={(event) => setForm((prev) => ({ ...prev, patient: event.target.value }))} required><option value="" disabled>Select a patient…</option>{myPatients.map((patient) => <option value={patient.id} key={patient.id}>{patient.name} · Room {patient.room}</option>)}</select></label>
+        <label>Category<select value={form.category} onChange={(event) => setForm((prev) => ({ ...prev, category: event.target.value }))}>{updateCategories.map((category) => <option key={category}>{category}</option>)}</select></label>
+        <label className="full-width">Update<textarea rows={4} value={form.text} onChange={(event) => setForm((prev) => ({ ...prev, text: event.target.value }))} placeholder="Describe the patient condition, concern, or task status in plain language…" required /></label>
+        <label className="checkbox-row"><input type="checkbox" checked={form.urgent} onChange={(event) => setForm((prev) => ({ ...prev, urgent: event.target.checked }))} /> Mark this update as urgent</label>
+        <div className="form-actions"><button type="submit" className="primary-button" disabled={!form.patient || !form.text.trim()}><Send size={15} /> Submit update</button><span className="muted small-text"><ShieldCheck size={12} /> Draft saved to this session only</span></div>
+      </form>
+      <div className="notice">The original update is always preserved. In the full app it would be sent to the charge nurse and processed by Amazon Bedrock; here it stays in your browser.</div>
+    </section>}
+  </>;
+
+  return <div className="app-shell">
+    {mobileMenu && <button className="mobile-backdrop" aria-label="Close navigation" onClick={() => setMobileMenu(false)} />}
+    <aside className={`sidebar ${mobileMenu ? 'open' : ''}`}><a className="brand" href="#shift" onClick={(event) => { event.preventDefault(); go('My shift'); }}><span className="brand-mark"><Plus size={24} strokeWidth={3} /></span>CareBridge<span className="brand-period">.</span></a><div className="workspace"><span className="workspace-icon"><Activity size={18} /></span><div><strong>Westbrook Medical</strong><span>Nurse workspace</span></div></div><div className="nav-label">MY SHIFT</div><nav>{navigation.map(({ label, icon: Icon, count }) => <button key={label} className={`nav-item ${page === label ? 'active' : ''}`} onClick={() => go(label)} aria-current={page === label ? 'page' : undefined}><Icon size={18} /><span>{label}</span>{count ? <span className="nav-count">{count}</span> : null}</button>)}</nav><div className="sidebar-bottom"><div className="continuity-note"><span className="continuity-icon"><ShieldCheck size={19} /></span><strong>Continuity starts with you.</strong><p>Your updates keep the whole team aligned during downtime.</p><span className="small-caps">HERE WHEN IT MATTERS</span></div><button className="nav-item" onClick={() => setModal({ type: 'about' })}><CircleHelp size={18} /><span>About this view</span></button><div className="profile"><span className={`avatar profile-avatar ${nurse.tone}`}>{nurse.initials}</span><div><strong>{nurse.name}</strong><span>Registered nurse · Demo profile</span></div></div></div></aside>
+    <div className="workspace-main"><header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open navigation" onClick={() => setMobileMenu(true)}><Menu size={21} /></button><span>Nurse</span><ChevronRight size={13} /><strong>{page}</strong></div><div className="topbar-right"><RoleToggle role={role} setRole={setRole} /><span className="topbar-divider" /><span className={`avatar top-avatar ${nurse.tone}`}>{nurse.initials}</span></div></header>
+      <main><div className="incident-banner"><span className="incident-icon"><Activity size={17} /></span><strong>EHR outage</strong><Badge tone="amber">Incident active</Badge><span className="incident-description">Downtime coordination is in progress</span><div className="incident-time"><Clock3 size={14} /><strong>{Math.floor(elapsed / 60)}h {String(elapsed % 60).padStart(2, '0')}m</strong><span>elapsed</span></div></div>
+        <section className="page-heading"><div><div className="eyebrow">{incident.unit.toUpperCase()}</div><h1>{page === 'My shift' ? `Welcome back, ${nurse.name.split(' ')[0]}.` : page === 'My patients' ? 'Your patients, in view.' : page === 'My tasks' ? 'Your tasks for this shift.' : 'Share what you are seeing.'}</h1><p>{page === 'My shift' ? 'Your patients, tasks, and updates in one place.' : page === 'My patients' ? 'Review coordination needs for patients in your care.' : page === 'My tasks' ? 'Mark tasks complete or report a delay.' : 'Submit a structured or plain-language update in seconds.'}</p></div>{page !== 'Submit update' && <button className="secondary-button handoff-button" onClick={() => go('Submit update')}><Send size={15} /> New update <ArrowUpRight size={14} /></button>}</section>
+        {mainContent}
+        <footer className="page-footer"><span><span className="brand-mini"><Plus size={12} strokeWidth={3} /></span> CareBridge <span>·</span> Continuity of care, together.</span><span>Local visual prototype <span>·</span> Times in Pacific</span></footer>
+      </main>
+    </div>
+    <dialog ref={dialog} className="detail-dialog" onCancel={() => setModal(null)} onClick={(event) => { if (event.target === dialog.current) setModal(null); }} aria-label="CareBridge details"><div className="dialog-content"><button className="icon-button modal-close" aria-label="Close details" onClick={() => setModal(null)} autoFocus><X size={21} /></button>{renderModal()}</div></dialog>
+  </div>;
+}
+
+function RoleToggle({ role, setRole }) {
+  return <div className="role-toggle" role="group" aria-label="Switch role view">
+    <button className={role === 'charge' ? 'active' : ''} aria-pressed={role === 'charge'} onClick={() => setRole('charge')}>Charge nurse</button>
+    <button className={role === 'nurse' ? 'active' : ''} aria-pressed={role === 'nurse'} onClick={() => setRole('nurse')}>Nurse</button>
+  </div>;
+}
+
+function Root() {
+  const [role, setRole] = useState('charge');
+  return role === 'nurse' ? <NurseView role={role} setRole={setRole} /> : <App role={role} setRole={setRole} />;
+}
+
+createRoot(document.getElementById('root')).render(<Root />);
