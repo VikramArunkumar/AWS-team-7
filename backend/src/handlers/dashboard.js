@@ -15,6 +15,7 @@ import { QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { ddb, TABLE_NAME } from '../lib/ddb.js';
 import { incidentPk, ENTITY } from '../lib/keys.js';
 import { authenticate, requireRole, ROLES } from '../lib/auth.js';
+import { staffDirectory } from '../lib/staff.js';
 import { ok, withErrorHandling, HttpError } from '../lib/http.js';
 import {
   VERIFICATION_FRESHNESS_MINUTES, isUnverified, isOverdue, durationMinutes,
@@ -99,7 +100,18 @@ async function getDashboard(event) {
     proposedRecommendations: recommendations.filter((r) => r.status === 'proposed').length,
   };
 
+  // Display names for every nurse referenced in this incident, plus the
+  // caller. Profiles live outside the incident partition, so they are looked
+  // up by id; Cognito subs are never included.
+  const staff = await staffDirectory([
+    actor.userId,
+    ...patients.map((p) => p.nurse),
+    ...tasks.map((t) => t.nurse),
+    ...updates.map((u) => u.nurse),
+  ]);
+
   return ok({
+    staff,
     incident: { ...incident, durationMinutes: durationMinutes(incident, now) }, // FR-7
     summary,
     patients,

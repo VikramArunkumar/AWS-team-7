@@ -100,6 +100,28 @@ export function createApiClient({ baseUrl, getAccessToken, fetchImpl = globalThi
       `${incidentPath(incidentId)}/updates/${seg(updateId)}`,
       { method: 'PATCH', body: { text, category, urgent } },
     ),
+    /** Charge nurse only: the full incident snapshot with staff names. */
+    getDashboard: (incidentId) => request(`${incidentPath(incidentId)}/dashboard`),
+    /** Charge nurse only: approve (optionally modified); creates one task. */
+    approveRecommendation: (incidentId, recommendationId, { assignedNurse, priority, description, dueAt }) => request(
+      `${incidentPath(incidentId)}/recommendations/${seg(recommendationId)}/approve`,
+      { method: 'POST', body: { assignedNurse, priority, description, dueAt } },
+    ),
+    /** Charge nurse only: reject; applies nothing. */
+    rejectRecommendation: (incidentId, recommendationId, { reason } = {}) => request(
+      `${incidentPath(incidentId)}/recommendations/${seg(recommendationId)}/reject`,
+      { method: 'POST', body: { reason: reason || undefined } },
+    ),
+    /** Charge nurse only: run AI review on a saved update; returns proposals. */
+    processUpdate: (incidentId, updateId) => request(
+      `${incidentPath(incidentId)}/updates/${seg(updateId)}/process`,
+      { method: 'POST' },
+    ),
+    /** Charge nurse: reassign, reprioritize, reschedule, or set status. */
+    updateTask: (incidentId, taskId, patch) => request(
+      `${incidentPath(incidentId)}/tasks/${seg(taskId)}`,
+      { method: 'PATCH', body: patch },
+    ),
     /** Report status on a task assigned to the caller. */
     setTaskStatus: (incidentId, taskId, status) => request(
       `${incidentPath(incidentId)}/tasks/${seg(taskId)}`,

@@ -27,7 +27,10 @@ Implemented and verified locally (mocked claims, no live AWS):
   only the caller's patients, assigned tasks, and own updates.
 - Retry-safe update saves: a `clientRequestId` makes a repeated submission
   return the stored update instead of creating a duplicate.
-- 111 backend tests, an offline template authorization audit, `cfn-lint`, and
+- Charge nurse decisions validated in the backend: approvals and reassignments
+  must name a provisioned nurse, priorities and due times are checked, and AI
+  review runs at most once per update (a failed run may be retried).
+- 124 backend tests, an offline template authorization audit, `cfn-lint`, and
   `sam validate --lint`.
 
 Deployed once to a workshop account, where hosted login and `GET /me` worked
@@ -107,13 +110,13 @@ Every route requires a provisioned account. `—` means 403.
 | GET | `/me` | Own identity | Own identity | FR-1, FR-3 |
 | GET | `/incidents/{id}` | Status and duration | Status and duration | FR-7 |
 | GET | `/incidents/{id}/workspace` | Own patients, tasks, updates | — | FR-13, FR-38, FR-39, NFR-8 |
-| GET | `/incidents/{id}/dashboard` | — | Full snapshot | FR-30, NFR-8 |
+| GET | `/incidents/{id}/dashboard` | — | Full snapshot plus staff display names | FR-30, NFR-8 |
 | POST | `/incidents` | — | Activate | FR-5 |
 | POST | `/incidents/{id}/deactivate` | — | Close | FR-8 |
 | POST | `/incidents/{id}/updates` | Author is self; patient must exist | Author is self; patient must exist | FR-13–FR-16 |
 | PATCH | `/incidents/{id}/updates/{id}` | Own updates only (text, category, urgent) | Own updates only | FR-17 |
-| POST | `/incidents/{id}/updates/{id}/process` | — | Run AI stub | FR-18–FR-23 |
-| POST | `/incidents/{id}/recommendations/{id}/approve` | — | Approve or modify, creates task | FR-33, NFR-24 |
+| POST | `/incidents/{id}/updates/{id}/process` | — | Run AI stub once per update | FR-18–FR-23 |
+| POST | `/incidents/{id}/recommendations/{id}/approve` | — | Approve or modify; assigns a provisioned nurse and creates one task | FR-33, NFR-24 |
 | POST | `/incidents/{id}/recommendations/{id}/reject` | — | Reject, applies nothing | NFR-25 |
 | POST | `/incidents/{id}/tasks` | — | Create | FR-36 |
 | PATCH | `/incidents/{id}/tasks/{id}` | Status on own assigned task | Status, assignee, priority, due time | FR-34, FR-38 |
@@ -132,7 +135,17 @@ or hyphens). The update id is derived from the author and that value, so a
 retried submission returns the stored update with `200` instead of creating a
 second one; the same value from another nurse is a separate update. Corrections
 push the prior text, category, and urgent flag into `editHistory` with the time
-and author of the change. Nurse
+and author of the change.
+
+The dashboard adds `staff`: display names and roles for the caller and every
+nurse referenced by the incident's patients, tasks, and updates (never Cognito
+subs). Approvals must name a provisioned nurse (`assignedNurse`) and may modify
+`description`, `priority`, and `dueAt`; task reassignment uses the same nurse
+check. AI review marks the update `pending` with a conditional write before
+calling the model, so a repeat or concurrent request gets `409
+already_processed` instead of duplicate recommendations; an update whose
+processing `failed` can be retried. If a Lambda stops mid-run, the update stays
+`pending` and cannot be re-run without clearing that flag. Nurse
 ownership checks are repeated inside the DynamoDB write condition, so a
 concurrent reassignment cannot slip through.
 
@@ -183,6 +196,7 @@ backend/
     lib/auth.js                 # verified-claims identity, role policy, mapping lookup
     lib/http.js                 # responses, CORS headers, errors
     lib/indicators.js           # overdue, unverified, and incident-duration rules
+    lib/staff.js                # nurse checks for assignments, staff names, due-time parsing
     lib/keys.js lib/ddb.js lib/audit.js lib/ids.js lib/bedrock.js
     handlers/me.js incidents.js dashboard.js workspace.js updates.js recommendations.js tasks.js
   scripts/
@@ -199,7 +213,7 @@ backend/
 ```bash
 cd backend
 npm install && npm install --prefix src
-npm test                                   # 111 tests, in-memory DynamoDB double
+npm test                                   # 124 tests, in-memory DynamoDB double
 
 # Template checks (SAM CLI / cfn-lint, or run them through uv as shown)
 uvx cfn-lint template.yaml
@@ -542,9 +556,11 @@ returns `403 not_provisioned`.
 ## Remaining gaps
 
 - No live AWS validation yet; run the smoke test above after the first deploy.
-- The charge nurse dashboard UI still renders fixtures, so updates and task
-  changes saved from the nurse view appear only through `GET .../dashboard`,
-  not on screen.
+- The staff list includes only nurses referenced in the incident; a provisioned
+  nurse with no patients, tasks, or updates cannot be chosen as an assignee in
+  the UI. Staffing availability and coverage gaps are not modeled.
+- Charge nurses cannot create a task from scratch in the UI yet
+  (`POST .../tasks` exists), and there is no escalation endpoint (FR-35).
 - Nurses read one configured incident (`VITE_INCIDENT_ID`); there is no
   endpoint for discovering the active incident.
 - Task status changes are not de-duplicated by request id, but setting the same

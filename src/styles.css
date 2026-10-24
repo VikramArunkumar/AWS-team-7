@@ -142,3 +142,5 @@
 .policy-disclaimer svg{flex-shrink:0;margin-top:2px;color:#8aa796}
 .policy-hint{display:flex;align-items:center;gap:8px;margin-top:22px;padding:13px 15px;border:1px dashed #d8e2da;border-radius:7px;font-size:11px;color:#7d8d81;background:#fafcfb}
 .policy-hint svg{flex-shrink:0;color:#8aa796}
+.dialog-form{padding:0;margin:14px 0 6px}.dialog-form .form-actions{margin-top:4px}
+.table-scroll{position:relative}

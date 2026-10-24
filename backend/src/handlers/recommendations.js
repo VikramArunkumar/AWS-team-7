@@ -17,6 +17,7 @@ import {
 import { newTaskId, nowIso } from '../lib/ids.js';
 import { buildAuditItem, AUDIT_ACTIONS } from '../lib/audit.js';
 import { authenticate, requireRole, ROLES } from '../lib/auth.js';
+import { assertNurse, parseDueAt, PRIORITIES } from '../lib/staff.js';
 import {
   ok, created, withErrorHandling, parseBody, HttpError,
 } from '../lib/http.js';
@@ -42,20 +43,31 @@ async function approve(event) {
 
   const rec = await loadProposed(incidentId, recommendationId);
 
+  // The charge nurse's decision, possibly modifying the proposal (NFR-25).
+  // Approval creates an assignment, so it must name a provisioned nurse.
+  const nurse = body.assignedNurse; // charge nurse assigns (FR-34)
+  await assertNurse(nurse);
+  if (body.priority !== undefined && !PRIORITIES.includes(body.priority)) {
+    throw new HttpError(400, 'invalid_priority', 'Unknown priority.');
+  }
+  if (body.description !== undefined && (typeof body.description !== 'string' || !body.description.trim())) {
+    throw new HttpError(400, 'missing_description', 'A task description is required.');
+  }
+  const dueAt = parseDueAt(body.dueAt);
+
   const taskId = newTaskId();
   const createdAt = nowIso();
-  const nurse = body.assignedNurse ?? null; // charge nurse assigns (FR-34)
   const task = {
     ...taskKey(incidentId, taskId),
-    ...(nurse ? taskGsi1(incidentId, nurse, taskId) : {}),
+    ...taskGsi1(incidentId, nurse, taskId),
     entity: ENTITY.TASK,
     incidentId,
     id: taskId,
     patient: rec.patient,
-    description: body.description ?? rec.title, // FR-37 fields
+    description: body.description?.trim() ?? rec.title, // FR-37 fields
     priority: body.priority ?? 'Moderate',
     nurse,
-    dueAt: body.dueAt ?? null,
+    dueAt,
     status: 'Unconfirmed',
     creator: actor.userId,
     createdAt,

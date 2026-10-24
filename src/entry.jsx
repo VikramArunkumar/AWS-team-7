@@ -5,6 +5,7 @@ import { WebStorageStateStore } from 'oidc-client-ts';
 import { buildAuthConfig } from './auth/config.js';
 import { AuthGate, ConfigProblem } from './auth/AuthGate.jsx';
 import { RoleView } from './RoleView.jsx';
+import './styles.css';
 
 // App entry point. Cognito sign-in (AuthGate) asks the backend for the user's
 // role with GET /me; RoleView then picks the charge nurse dashboard or the
